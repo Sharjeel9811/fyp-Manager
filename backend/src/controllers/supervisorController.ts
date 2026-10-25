@@ -219,10 +219,11 @@ export const reviewProposal = asyncHandler(async (req: AuthRequest, res: Respons
 
   await notifyStudent(String(proposal.projectId), 'Proposal reviewed', `Your proposal was marked "${statusLabel(status)}".`, '/student/proposal')
   await writeAudit({ userId: req.user!.id, projectId: String(proposal.projectId), action: `Proposal ${statusLabel(status)}`, entityType: 'Proposal', entityId: String(proposal._id) })
-  broadcastActivity({
+  await broadcastActivity({
     type: 'review',
     message: `Supervisor ${req.user?.firstName} ${req.user?.lastName} reviewed a proposal - ${statusLabel(status)}`,
     meta: { projectId: String(proposal.projectId) },
+    byUserId: req.user!.id,
   })
 
   res.json({ success: true, message: `Proposal ${statusLabel(status).toLowerCase()}`, status })
@@ -257,10 +258,11 @@ export const reviewSubmission = asyncHandler(async (req: AuthRequest, res: Respo
   await notifyStudent(String(submission.projectId), 'Submission reviewed', `"${submission.title}" was marked "${statusLabel(status)}".`, '/student/submissions')
   await writeAudit({ userId: req.user!.id, projectId: String(submission.projectId), action: `Submission ${statusLabel(status)}`, entityType: 'Submission', entityId: String(submission._id) })
   await calculateProjectHealth(String(submission.projectId))
-  broadcastActivity({
+  await broadcastActivity({
     type: 'review',
     message: `Supervisor ${req.user?.firstName} ${req.user?.lastName} reviewed submission "${submission.title}" - ${statusLabel(status)}`,
     meta: { projectId: String(submission.projectId) },
+    byUserId: req.user!.id,
   })
 
   res.json({ success: true, message: `Submission ${statusLabel(status).toLowerCase()}`, status })

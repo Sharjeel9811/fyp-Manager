@@ -13,7 +13,7 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 
 **Demo accounts** (password `password123` for all): `student@fypmanager.com`, `supervisor@fypmanager.com`, `admin@fypmanager.com`
 
-> **Note on hosting:** the backend runs as Vercel serverless functions, so long-lived Socket.IO connections are not kept open there. Every dashboard also polls its data (15s interval) and refetches on tab focus, so cross-role updates still propagate. Run the backend as a normal Node process (`npm run dev` / `npm start`) to get the full WebSocket real-time experience.
+> **Why the backend has two targets:** Vercel serverless functions are request-scoped, so they can serve the REST API but cannot hold a Socket.IO connection open and cannot share in-memory presence between instances. The frontend therefore lives on Vercel, while the same Express app is also deployed as a long-running Node service (see [Real-Time Deployment](#real-time-deployment-render)). Until that service is created, every dashboard keeps polling its REST data (15s interval + refetch on tab focus) and the Live Activity panel shows the real connection state instead of pretending to be live.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -26,6 +26,8 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 - [API Endpoints](#api-endpoints)
 - [Frontend Structure](#frontend-structure)
 - [Setup Instructions](#setup-instructions)
+- [Real-Time Deployment (Render)](#real-time-deployment-render)
+- [Testing Real-Time](#testing-real-time)
 - [Default Credentials](#default-credentials)
 - [Project Health Monitor Logic](#project-health-monitor-logic)
 - [Smart Features Logic](#smart-features-logic)
@@ -84,65 +86,69 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 ## Real-Time Features
 
 ### WebSocket Infrastructure (Socket.IO)
-The platform uses Socket.IO for bidirectional, real-time communication with JWT-based authentication.
+The platform uses Socket.IO for bidirectional, real-time communication. The socket is authenticated with the same JWT the REST API uses, so a socket can never see more than its user is allowed to see over HTTP.
+
+**Connection:** the client connects to the bare API origin (`new URL(VITE_API_URL).origin`) with `auth: { token }`. Socket.IO needs the origin, not the `/api/v1` path — pointing it at the API path makes the server treat `api` as a namespace and the connection fails.
+
+**Handshake rules (same as the REST `authenticate` middleware):**
+1. A bearer token must be present in `handshake.auth.token`.
+2. The token signature must verify against `JWT_SECRET`.
+3. The user must still exist and be `isActive`.
+4. `tokenVersion` in the token must equal the user's `tokenVersion`, so a password change invalidates live sockets too.
+
+Rejected handshakes close with `unauthorized` or `session-expired`; the client surfaces that in the panel instead of retrying forever.
 
 #### 1. Live Presence System
-- **Online Status Tracking** - Real-time tracking of active users
-- **Presence Updates** - Broadcasts when users connect/disconnect
-- **Online User Count** - Displayed across dashboards
-- **Per-User Presence** - Check if specific users are online
-- **Socket Rooms** - Room-based communication for project-specific features
+- **Per-User Presence** - One user may have several tabs; presence is tracked per user, not per socket
+- **Online Count** - Unique authenticated users currently connected
+- **Presence Snapshot** - A new socket immediately receives `presence:state`, then everyone receives `presence:update`
+- **Correct Semantics** - A user is only online if they have an open authenticated socket; the server running does not make anyone online
 
 **Logic:**
 ```javascript
-// Server maintains in-memory Map<userId, Set<socketId>>
-// On connection: Add socket to user's set, broadcast presence:update
-// On disconnect: Remove socket, if set empty delete user and broadcast offline
+// Server keeps Map<userId, { sockets: Set<socketId>, role, name }>
+// connection: add socketId, send presence:state, broadcast presence:update {online:true}
+// disconnect: remove socketId; only when the set is empty, broadcast {online:false}
 ```
 
 #### 2. Real-Time Activity Feed
-- **Live Event Broadcasting** - All major actions broadcast instantly
-- **Activity Types**: proposal, review, assignment, info
-- **Auto-Expiring Feed** - Shows last 50 activities
-- **Visual Indicators** - Pulse animation on new activities
-- **Timestamps** - Relative time display
+- **Database first** - controllers persist the change, then `await broadcastActivity(...)`
+- **Authorized fan-out** - supervisors, admins, the project audience (team members + assigned supervisor) and the actor; Socket.IO de-duplicates sockets in several rooms
+- **Admin-only manual push** - `POST /api/v1/realtime/activity` is not available to students/supervisors, so feed items cannot be spoofed
+- **Dedupe on the client** - items carry a stable `id`; the feed ignores repeats (reconnect redelivery, React StrictMode double effects)
+- **Auto-Expiring Feed** - last 50 activities kept in memory
 
 **Triggered Events:**
 - Proposal saved/submitted by students
 - Proposal/submission reviewed by supervisors
 - Supervisor assigned by admin
-- Comments and replies
 
 #### 3. Project-Specific Live Chat
 - **Room-Based Messaging** - Each project has its own chat room
+- **Authorized Joins** - `room:join` verifies ProjectMember / SupervisorAssignment (admin allowed); refusals come back as `room:denied`
 - **Real-Time Delivery** - Instant message broadcasting
 - **Message History** - Last 200 messages cached in memory
 - **Typing Indicators** - Shows who is typing with auto-timeout
-- **Message Persistence** - Chat history retrievable on join
-- **User Identification** - Messages show sender info
-
-**Logic:**
-```javascript
-// Join room: socket.join(roomId)
-// Send message: Validate, store in chatRooms Map, broadcast to room
-// Typing: Track in typingUsers Map per room with 1.2s timeout
-```
 
 #### 4. Real-Time Notifications
-- **Instant Delivery** - Notifications pushed via WebSocket
-- **Event-Driven** - Triggered on assignments, reviews, comments
+- **Instant Delivery** - `notification:new` pushed to the target user's room
 - **Fallback to Polling** - Works even if WebSocket disconnects
 
-#### 5. Live Status Monitoring
-- **Connection Status** - Visual indicator (WiFi/WiFiOff)
-- **Heartbeat/Ping-Pong** - `activity:ping`/`activity:pong` for connection health
-- **Auto-Reconnection** - Socket.IO handles reconnection automatically
+#### 5. Connection, Presence and Activity are shown separately
+`RealtimeContext` exposes a status union — `idle` (signed out), `connecting`, `online`, `reconnecting`, `offline`, `unauthorized` — plus `onlineUsers` and `activityFeed`. The panel therefore never equates "socket down" with "nobody online", and the fallback banner says polling is still active.
+
+**Client lifecycle:**
+- One socket per authenticated session, created in `useEffect` keyed on the user id (not created on render)
+- All listeners removed in cleanup, socket disconnected on logout
+- Reconnection with backoff (`reconnectionAttempts: Infinity`), offline users cleared while disconnected
+- A 5s token watcher reconnects with a rotated token after a password change
+- Polling (15s + focus refetch) stays enabled as a fallback for dashboard data; it is idempotent, so it cannot duplicate activity rows
 
 ### Integration Points
-- **Auth Context Integration** - WebSocket connects only when user authenticated
-- **Token-Based Auth** - Socket authenticates using JWT from localStorage
+- **Auth Context Integration** - WebSocket connects only when a user is authenticated
+- **Token-Based Auth** - Socket handshake uses the stored JWT (`fyp_token`)
 - **Dashboard Integration** - Live Activity Panel on all role dashboards
-- **Event Hooks** - Backend emits events on CRUD operations
+- **Event Hooks** - Backend emits events after successful database writes only
 
 ## Tech Stack
 
@@ -187,16 +193,26 @@ The platform uses Socket.IO for bidirectional, real-time communication with JWT-
 
 ### System Architecture
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Frontend   │────▶│   Backend    │────▶│   MongoDB    │
-│  (React/Vite)│     │ (Express/TS) │     │   Database   │
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                    │
-       │              ┌─────▼─────┐
-       └─────────────▶│  Socket.IO │
-                      │   Server   │
-                      └───────────┘
+                    ┌──────────────────────────┐
+   Browser ────────▶│  Vercel: React/Vite SPA  │
+                    └────────────┬─────────────┘
+                                 │  HTTPS (REST)  +  WSS (Socket.IO)
+                    ┌────────────▼─────────────┐
+                    │  Render: Express + TS    │
+                    │  http.createServer(app)  │
+                    │  Socket.IO attached      │
+                    └────────────┬─────────────┘
+                                 │  Mongoose
+                    ┌────────────▼─────────────┐
+                    │  MongoDB Atlas           │
+                    └──────────────────────────┘
 ```
+
+The same Express app serves both transports from one HTTP server: REST under
+`/api/v1`, Socket.IO under `/socket.io`. Presence, chat history and typing state
+live in that process's memory, which is why the API must run as a single
+long-lived instance (not serverless, not multiple replicas without a Redis
+adapter).
 
 ### Request Flow
 1. **Client Request** - Frontend makes HTTP request via Axios with JWT token
@@ -219,12 +235,15 @@ The platform uses Socket.IO for bidirectional, real-time communication with JWT-
 
 ### Security Measures
 - **Password Hashing** - Argon2 algorithm for secure password storage
-- **JWT with Token Versioning** - Runtime password changes invalidate old tokens
+- **JWT with Token Versioning** - Runtime password changes invalidate old tokens (REST *and* live sockets)
 - **Role-Based Access Control (RBAC)** - Route-level protection by role
+- **Socket Handshake Auth** - JWT verified on connect; inactive users and stale `tokenVersion`s are refused
+- **Socket Room Authorization** - `room:join` checks ProjectMember / SupervisorAssignment; admins only for cross-project
+- **Scoped Broadcasts** - activity fan-out targets role rooms plus the project's own audience; no global student broadcast
 - **Helmet.js** - Security headers (XSS, CSP, etc.)
-- **CORS Configuration** - Restricted to frontend origins
+- **CORS Configuration** - One shared origin list for REST and Socket.IO (`FRONTEND_URL`, plus localhost in development)
 - **Rate Limiting** - 1000 requests per 15 minutes per IP
-- **Input Validation** - Zod schemas for request validation
+- **Input Validation** - Zod schemas for request validation; socket payloads length-checked and type-checked
 - **SQL/NoSQL Injection Prevention** - Mongoose parameterized queries
 - **File Upload Security** - Multer with type/size restrictions
 
@@ -350,9 +369,9 @@ The platform uses Socket.IO for bidirectional, real-time communication with JWT-
 ### Real-Time Routes (`/api/v1/realtime`)
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/status` | Get online count & users | Yes |
-| GET | `/presence` | Check user presence | Yes |
-| POST | `/activity` | Push activity event | Yes |
+| GET | `/status` | Get online count & sessions | Yes |
+| GET | `/presence?userId=` | Check a user's presence | Yes |
+| POST | `/activity` | Push activity event | Admin only |
 
 ### WebSocket Events
 
@@ -361,7 +380,7 @@ The platform uses Socket.IO for bidirectional, real-time communication with JWT-
 |-------|---------|-------------|
 | `room:join` | `roomId: string` | Join project chat room |
 | `room:leave` | `roomId: string` | Leave project chat room |
-| `chat:send` | `{roomId, text, sender}` | Send chat message |
+| `chat:send` | `{roomId, text}` | Send chat message (sender taken from the socket) |
 | `chat:history` | `roomId: string` | Request chat history |
 | `typing:start` | `{roomId, name}` | Start typing indicator |
 | `typing:stop` | `{roomId}` | Stop typing indicator |
@@ -372,9 +391,12 @@ The platform uses Socket.IO for bidirectional, real-time communication with JWT-
 |-------|---------|-------------|
 | `connect` | - | Connection established |
 | `disconnect` | - | Connection lost |
-| `presence:update` | `{userId, online, count}` | Presence change |
+| `connect_error` | `Error` | Rejected handshake (`unauthorized` / `session-expired`) |
+| `presence:state` | `{self, users[], count}` | Presence snapshot on connect |
+| `presence:update` | `{userId, role, name, online, count}` | Presence change |
 | `activity:feed` | `ActivityItem` | New activity event |
 | `room:joined` | `{roomId}` | Room join confirmation |
+| `room:denied` | `{roomId, reason}` | Join refused (`forbidden`, `invalid-room`, `error`) |
 | `chat:message` | `ChatMsg` | New chat message |
 | `chat:history` | `{roomId, messages}` | Chat history response |
 | `typing:update` | `{roomId, users[]}` | Typing users update |
@@ -460,11 +482,21 @@ cd frontend
 # Install dependencies
 npm install
 
+# Create .env file (VITE_API_URL must include /api/v1)
+cp .env.example .env
+```
+
+Configure `.env`:
+```env
+VITE_API_URL=http://localhost:5000/api/v1
+```
+
+```bash
 # Start development server
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`
+Frontend runs on `http://localhost:5173`. Only `VITE_*` variables reach the browser — never put `JWT_SECRET`, `MONGODB_URI`, or any other secret in this file.
 
 ### Build for Production
 ```bash
@@ -478,6 +510,74 @@ cd frontend
 npm run build
 npm run preview
 ```
+
+## Real-Time Deployment (Render)
+
+`render.yaml` in the repo root is a Render Blueprint for the API service. The frontend stays on Vercel.
+
+### 1. Create the API service
+1. Push this repo to GitHub (already connected for the live deployment).
+2. In Render: **New → Blueprint**, select the repo, apply the detected `render.yaml`.
+3. Render reads `backend/` as the root and runs:
+   - Build: `npm install && npm run build`
+   - Start: `npm start` (`node dist/index.js`)
+   - Health check: `/health`
+4. `PORT` is injected by Render; the server already reads `process.env.PORT`.
+
+### 2. Environment variables
+
+**Render → fyp-manager-api → Environment**
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `MONGODB_URI` | your Atlas SRV URI | Paste in the dashboard, never in git |
+| `JWT_SECRET` | same secret as the current backend | Rotating it signs everyone out |
+| `JWT_EXPIRE` | `7d` | Must be a duration string, not the secret |
+| `NODE_ENV` | `production` | |
+| `FRONTEND_URL` | `https://fypmanager.vercel.app` | REST CORS + Socket.IO origin; comma-separated list allowed |
+| `PORT` | *(do not set)* | Provided by Render |
+
+**Vercel → fyp-manager → Settings → Environment Variables**
+
+| Variable | Value |
+|----------|-------|
+| `VITE_API_URL` | `https://<your-service>.onrender.com/api/v1` |
+
+The `/api/v1` suffix matters for REST; the client strips it to get the socket origin automatically, so do not point the socket at `/api/v1` yourself.
+
+### 3. Repoint and verify
+1. Save the Vercel env var, then **Redeploy** the frontend (Vite inlines env vars at build time).
+2. If you keep the Render URL in `FRONTEND_URL`, no change is needed there; for a custom domain, add it to `FRONTEND_URL` before redeploying.
+3. Check `https://<your-service>.onrender.com/health` → `{"status":"ok","database":"connected"}`.
+4. Open the app, sign in, and confirm the Live Activity panel shows “N online” instead of “Offline”.
+
+### Plan notes
+- Render **free** instances sleep after ~15 minutes of inactivity. The first request after sleep has a cold start and existing sockets drop; the client reconnects automatically and polling covers the gap. For always-on real-time, use the Starter plan.
+- Run exactly **one** instance. Presence/chat are in-process; multiple instances require the Socket.IO Redis adapter.
+- MongoDB Atlas must allow Render's egress IPs. `0.0.0.0/0` is the simplest option for a demo cluster.
+- Vercel hosting of the API can stay as a REST-only fallback, but it can never serve WebSockets.
+
+## Testing Real-Time
+
+With the backend running locally (`PORT=5010`, database reachable) from `backend/`:
+
+```bash
+node rt-inspect.cjs   # fixture overview: students, projects, assignments
+node rt-test.cjs      # end-to-end socket test suite
+```
+
+`rt-test.cjs` logs in as student, second student, supervisor and admin, then verifies:
+- JWT handshake, `presence:state` snapshot, online/offline transitions
+- student activity reaching the supervisor without a refresh, exactly once
+- no leakage of a project's activity to an unrelated student
+- authorized/denied `room:join`, chat isolation
+- anonymous and stale-`tokenVersion` sockets rejected
+- several supervisor tabs each receiving one copy; presence counting users not sockets
+- heartbeat, reconnect presence, REST overviews, admin-only activity push
+
+It snapshots and restores the demo proposal/project so the seeded data is unchanged.
+
+To verify in the browser: sign in as the student in one window and the supervisor in another, save a proposal draft as the student, and watch the supervisor's Live Activity panel update with no refresh. Then stop the API — the panel should switch to “Reconnecting…” and resume by itself when the API returns.
 
 ## Default Credentials
 

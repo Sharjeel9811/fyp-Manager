@@ -461,10 +461,11 @@ export const assignSupervisor = asyncHandler(async (req: AuthRequest, res: Respo
   await Notification.create({ userId: supervisor.userId, title: 'Project assigned', message: `You were assigned to "${project.title}".`, type: 'assignment', link: '/supervisor/projects' })
   emitToUser(supervisor.userId, 'notification:new', { title: 'Project assigned', type: 'assignment' })
   await writeAudit({ userId: req.user!.id, projectId, action: 'Assigned supervisor', entityType: 'SupervisorAssignment', entityId: supervisorId, details: { title: project.title } })
-  broadcastActivity({
+  await broadcastActivity({
     type: 'assignment',
     message: `Admin assigned supervisor to "${project.title}"`,
     meta: { projectId: String(project._id) },
+    byUserId: req.user!.id,
   })
   res.json({ success: true, message: 'Supervisor assigned' })
 })

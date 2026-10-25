@@ -392,16 +392,18 @@ export const saveProposal = asyncHandler(async (req: AuthRequest, res: Response)
         emitToUser(sup.userId, 'notification:new', { title: 'Proposal submitted', type: 'proposal' })
       }
     }
-    broadcastActivity({
+    await broadcastActivity({
       type: 'proposal',
       message: `${req.user!.firstName} ${req.user!.lastName} submitted a proposal for supervisor review`,
       meta: { projectId: String(ctx.project._id) },
+      byUserId: req.user!.id,
     })
   } else {
-    broadcastActivity({
+    await broadcastActivity({
       type: 'proposal',
       message: `${req.user!.firstName} ${req.user!.lastName} updated their proposal draft`,
       meta: { projectId: String(ctx.project._id) },
+      byUserId: req.user!.id,
     })
   }
 

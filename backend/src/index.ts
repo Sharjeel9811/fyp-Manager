@@ -16,7 +16,7 @@ import healthRoutes from './routes/healthRoutes'
 import realtimeRoutes from './routes/realtimeRoutes'
 import { errorHandler } from './middleware/errorHandler'
 import { connectDB } from './config/database'
-import { initRealtime } from './services/realtime'
+import { initRealtime, allowedOrigins } from './services/realtime'
 
 const app = express()
 const PORT = Number(process.env.PORT || 5000)
@@ -28,7 +28,9 @@ app.set('trust proxy', 1)
 app.use(helmet())
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    // Same origin list as the Socket.IO handshake so REST and websockets can
+    // never disagree about which frontend is allowed.
+    origin: allowedOrigins(),
     credentials: true,
   })
 )

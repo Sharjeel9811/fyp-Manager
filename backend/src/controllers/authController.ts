@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { Department, StudentProfile, SupervisorProfile, User } from '../models'
 import { AppUser, AuthRequest } from '../middleware/auth'
 import { asyncHandler, displayName } from '../utils/helpers'
+import { disconnectUser } from '../services/realtime'
 
 function signToken(user: any): string {
   return jwt.sign(
@@ -188,6 +189,10 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res) => {
   user.passwordHash = await argon2.hash(newPassword)
   user.tokenVersion = (user.tokenVersion || 0) + 1
   await user.save()
+
+  // Old sockets still carry the previous tokenVersion; drop them so the client
+  // reconnects with the fresh token instead of running on a stale credential.
+  disconnectUser(String(user._id))
 
   const token = signToken(user)
   const profile = await buildProfile(String(user._id))

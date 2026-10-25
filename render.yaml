@@ -1,0 +1,36 @@
+# Render Blueprint for the FYP Manager API.
+#
+# Why this exists: Vercel serverless functions cannot hold a Socket.IO
+# connection. The frontend stays on Vercel; this service runs the same Express
+# app on a real Node process so `http.createServer(app)` + Socket.IO can stay
+# connected.
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> pick this repo.
+# Secrets (MONGODB_URI, JWT_SECRET) are never stored here; Render prompts for
+# them the first time the Blueprint is created.
+
+services:
+  - type: web
+    name: fyp-manager-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_EXPIRE
+        value: 7d
+      # Public origin of the Vercel frontend. Used for REST CORS and for the
+      # Socket.IO handshake. Comma-separated values are accepted by Socket.IO.
+      - key: FRONTEND_URL
+        value: https://fypmanager.vercel.app
+      # Set these two in the Render dashboard (sync: false = prompted, never committed).
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
