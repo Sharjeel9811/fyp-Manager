@@ -19,7 +19,7 @@ const socketClient = (() => {
 const { io } = socketClient
 const { Proposal, Project } = require('./dist/models')
 
-const BASE = process.env.RT_BASE || 'http://localhost:5010'
+const BASE = process.env.RT_BASE || `http://localhost:${process.env.PORT || 5000}`
 const API = BASE + '/api/v1'
 
 const results = []

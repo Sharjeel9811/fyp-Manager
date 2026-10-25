@@ -27,7 +27,8 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 - [Frontend Structure](#frontend-structure)
 - [Setup Instructions](#setup-instructions)
 - [Real-Time Deployment (Render)](#real-time-deployment-render)
-- [Testing Real-Time](#testing-real-time)
+- [Testing](#testing)
+- [File Storage](#file-storage)
 - [Default Credentials](#default-credentials)
 - [Project Health Monitor Logic](#project-health-monitor-logic)
 - [Smart Features Logic](#smart-features-logic)
@@ -36,7 +37,7 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 
 ## Overview
 
-FYP Manager is a full-stack web application that digitizes and automates the Final Year Project management process. It provides role-based dashboards for Students, Supervisors, and Administrators with intelligent features like smart supervisor matching, defense readiness scoring, real-time collaboration, and live activity tracking.
+FYP Manager is a full-stack web application that digitizes and automates the Final Year Project management process. It provides role-based dashboards for Students, Supervisors, and Administrators with intelligent features like rule-based supervisor matching, explainable readiness scoring, real-time collaboration, and live activity tracking.
 
 ## Key Features
 
@@ -48,7 +49,7 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Document Submission** - Upload deliverables with submission history
 - **Feedback & Comments** - Receive and respond to supervisor feedback
 - **Defense & Evaluation** - View defense schedule and released evaluations
-- **Defense Readiness Score** - AI-like scoring system with actionable recommendations
+- **Defense Readiness Score** - Explainable, rule-based score (proposal, progress, submissions, health) with actionable recommendations
 - **Profile Management** - Update profile and change password with real-time token rotation
 
 ### For Supervisors
@@ -65,7 +66,7 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Admin Dashboard** - System-wide analytics and statistics
 - **User Management** - Create, view, and manage all users
 - **Project Management** - Oversee all projects across departments
-- **Smart Supervisor Matching** - AI-powered recommendations based on research overlap, workload, and availability
+- **Supervisor Matching** - Explainable, rule-based ranking from research overlap, workload, availability, and department fit (no ML model)
 - **Supervisor Assignments** - Assign supervisors with intelligent suggestions
 - **Proposal Approvals** - Final approval/rejection of proposals
 - **Departments & Sessions** - Manage academic structure
@@ -125,9 +126,9 @@ Rejected handshakes close with `unauthorized` or `session-expired`; the client s
 
 #### 3. Project-Specific Live Chat
 - **Room-Based Messaging** - Each project has its own chat room
-- **Authorized Joins** - `room:join` verifies ProjectMember / SupervisorAssignment (admin allowed); refusals come back as `room:denied`
+- **Authorized Joins** - `room:join` verifies ProjectMember / SupervisorAssignment before subscribing the socket (admin allowed); refusals come back as `room:denied`, so a logged-in outsider cannot read another project's chat
 - **Real-Time Delivery** - Instant message broadcasting
-- **Message History** - Last 200 messages cached in memory
+- **Session History Only** - The last 200 messages are cached in process memory; they are **not persisted**. A server restart clears them, and multiple instances would not share them. Adding a `ChatMessage` collection (plus the Redis adapter for multi-instance) is the upgrade path.
 - **Typing Indicators** - Shows who is typing with auto-timeout
 
 #### 4. Real-Time Notifications
@@ -155,37 +156,37 @@ Rejected handshakes close with `unauthorized` or `session-expired`; the client s
 ### Frontend
 | Technology | Purpose | Version |
 |------------|---------|---------|
-| **React** | UI Framework | 18.2.0 |
-| **TypeScript** | Type Safety | 5.3.3 |
-| **Vite** | Build Tool & Dev Server | 5.0.8 |
-| **React Router DOM** | Client-side Routing | 6.21.1 |
-| **TanStack Query** | Data Fetching & Caching | 5.14.2 |
-| **Tailwind CSS** | Styling Framework | 3.4.0 |
+| **React** | UI Framework | 18.3.1 |
+| **TypeScript** | Type Safety | 5.9.3 |
+| **Vite** | Build Tool & Dev Server | 5.4.21 |
+| **React Router DOM** | Client-side Routing | 6.30.6 |
+| **TanStack Query** | Data Fetching & Caching | 5.104.5 |
+| **Tailwind CSS** | Styling Framework | 3.4.19 |
 | **shadcn/ui** | Component Library (Radix UI based) | Latest |
 | **Framer Motion** | Animations & Transitions | 14.6.0 |
 | **Socket.IO Client** | Real-time Communication | 4.8.4 |
-| **React Hook Form** | Form Management | 7.49.2 |
-| **Zod** | Schema Validation | 3.22.4 |
-| **Recharts** | Data Visualization | 2.10.3 |
+| **React Hook Form** | Form Management | 7.90.0 |
+| **Zod** | Schema Validation | 3.25.76 |
+| **Recharts** | Data Visualization | 2.15.4 |
 | **Lucide React** | Icon Library | 0.303.0 |
-| **Axios** | HTTP Client | 1.6.2 |
-| **date-fns** | Date Utilities | 3.0.6 |
+| **Axios** | HTTP Client | 1.20.0 |
+| **date-fns** | Date Utilities | 3.6.0 |
 
 ### Backend
 | Technology | Purpose | Version |
 |------------|---------|---------|
 | **Node.js** | Runtime Environment | v18+ |
-| **Express.js** | Web Framework | 4.18.2 |
-| **TypeScript** | Type Safety | 5.3.3 |
+| **Express.js** | Web Framework | 4.22.3 |
+| **TypeScript** | Type Safety | 5.9.3 |
 | **MongoDB** | NoSQL Database | Latest |
-| **Mongoose** | ODM for MongoDB | 8.0.3 |
+| **Mongoose** | ODM for MongoDB | 8.24.6 |
 | **Socket.IO** | Real-time Server | 4.8.4 |
-| **JSON Web Token** | Authentication | 9.0.2 |
+| **JSON Web Token** | Authentication | 9.0.3 |
 | **Argon2** | Password Hashing | 0.31.2 |
-| **Helmet** | Security Headers | 7.1.0 |
-| **CORS** | Cross-Origin Resource Sharing | 2.8.5 |
-| **Express Rate Limit** | API Rate Limiting | 7.1.5 |
-| **Multer** | File Upload | 1.4.5-lts.1 |
+| **Helmet** | Security Headers | 7.2.0 |
+| **CORS** | Cross-Origin Resource Sharing | 2.8.6 |
+| **Express Rate Limit** | API Rate Limiting | 7.5.1 |
+| **Multer** | File Upload | 1.4.5-lts.2 |
 | **UUID** | Unique Identifiers | 9.0.1 |
 | **Zod** | Request Validation | 3.22.4 |
 
@@ -232,20 +233,21 @@ adapter).
 4. **Request Authorization** - Token sent in `Authorization: Bearer <token>` header
 5. **Token Validation** - Middleware verifies signature and checks tokenVersion against DB
 6. **Session Management** - Password change increments tokenVersion, invalidating all other sessions
+7. **Storage trade-off** - The JWT lives in `localStorage`, so it is readable by any script that achieves XSS. The app mitigates it with React's escaping, Helmet headers, and no `dangerouslySetInnerHTML`, but a production hardening step is an httpOnly + Secure + SameSite cookie with CSRF protection. This is a deliberate trade-off (simple cross-tab auth), not an oversight.
 
 ### Security Measures
 - **Password Hashing** - Argon2 algorithm for secure password storage
 - **JWT with Token Versioning** - Runtime password changes invalidate old tokens (REST *and* live sockets)
 - **Role-Based Access Control (RBAC)** - Route-level protection by role
+- **Registration Role Allow-list** - `/auth/register` accepts only `STUDENT` or `SUPERVISOR`; `ADMIN` is rejected (admin accounts are created by an existing admin). Supervisor self-signup is intentional for this demo; for a real deployment gate it behind `isActive` approval.
 - **Socket Handshake Auth** - JWT verified on connect; inactive users and stale `tokenVersion`s are refused
 - **Socket Room Authorization** - `room:join` checks ProjectMember / SupervisorAssignment; admins only for cross-project
 - **Scoped Broadcasts** - activity fan-out targets role rooms plus the project's own audience; no global student broadcast
 - **Helmet.js** - Security headers (XSS, CSP, etc.)
 - **CORS Configuration** - One shared origin list for REST and Socket.IO (`FRONTEND_URL`, plus localhost in development)
-- **Rate Limiting** - 1000 requests per 15 minutes per IP
-- **Input Validation** - Zod schemas for request validation; socket payloads length-checked and type-checked
-- **SQL/NoSQL Injection Prevention** - Mongoose parameterized queries
-- **File Upload Security** - Multer with type/size restrictions
+- **Rate Limiting** - Global 1000 requests / 15 min per IP, plus **10 failed logins / 15 min per IP** on `/auth/login` (successful logins do not consume the budget)
+- **Input Validation** - Zod schemas per route, plus a global sanitizer that strips `$`-prefixed and dotted keys from `body`/`query` to block Mongo operator injection (`{ "email": { "$ne": null } }`). Mongoose casting alone does **not** prevent this.
+- **File Upload Security** - Multer with type/size restrictions; uploaded files are stored on local disk (see the storage note below)
 
 ### Password Change Logic
 ```typescript
@@ -261,11 +263,44 @@ adapter).
 
 ## Database Models
 
+### Entity Relationships
+
+```mermaid
+erDiagram
+  User ||--o| StudentProfile : has
+  User ||--o| SupervisorProfile : has
+  User ||--o{ Notification : receives
+  User ||--o{ AuditLog : acts
+  Department ||--o{ StudentProfile : owns
+  Department ||--o{ SupervisorProfile : owns
+  Department ||--o{ Project : owns
+  AcademicSession ||--o{ Project : runs
+
+  Project ||--o{ ProjectMember : has
+  StudentProfile ||--o{ ProjectMember : joins
+  Project ||--o| Proposal : has
+  Proposal ||--o{ ProposalVersion : snapshots
+  Project ||--o| SupervisorAssignment : assigned
+  SupervisorProfile ||--o{ SupervisorAssignment : supervises
+  Project ||--o{ Milestone : plans
+  Milestone ||--o{ Task : breaks_into
+  Project ||--o{ Submission : receives
+  Submission ||--o{ SubmissionFile : contains
+  Project ||--o{ Feedback : collects
+  Submission ||--o{ Feedback : about
+  Project ||--o{ Comment : collects
+  Project ||--o| DefenseSchedule : schedules
+  Project ||--o{ Evaluation : graded_by
+  User ||--o{ Evaluation : evaluates
+  EvaluationRubric ||--o{ RubricCriterion : defines
+  EvaluationRubric ||--o{ Evaluation : applied_to
+```
+
 ### Core Models
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
 | **User** | Base user account | email, passwordHash, role, tokenVersion, isActive |
-| **StudentProfile** | Student-specific data | userId, studentId, departmentId, CGPA, skills |
+| **StudentProfile** | Student-specific data | userId, studentId, departmentId, phone, bio |
 | **SupervisorProfile** | Supervisor-specific data | userId, employeeId, departmentId, researchInterests, maxSupervisees, availability |
 | **Department** | Academic departments | name, code |
 | **AcademicSession** | FYP sessions | name, startDate, endDate, isActive |
@@ -273,7 +308,7 @@ adapter).
 ### Project Workflow Models
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
-| **Project** | FYP project instance | title, description, status, studentId, departmentId, academicSessionId |
+| **Project** | FYP project instance | title, abstract, status, currentStage, departmentId, academicSessionId, riskScore, riskLevel |
 | **ProjectMember** | Team members | projectId, studentId, role |
 | **Proposal** | Project proposal | projectId, title, abstract, objectives, methodology, status, version, submittedAt |
 | **ProposalVersion** | Proposal history | proposalId, versionNumber, all proposal fields |
@@ -282,38 +317,47 @@ adapter).
 ### Progress Tracking
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
-| **Milestone** | Project milestones | projectId, title, description, dueDate, status, progress |
-| **Submission** | Deliverable submissions | projectId, milestoneId, title, fileUrl, status, reviewedAt |
+| **Milestone** | Project milestones | projectId, title, description, dueDate, status, completionPercentage |
+| **Task** | Milestone tasks | milestoneId, title, status, dueDate |
+| **Submission** | Deliverable submissions | projectId, milestoneId, studentId, title, type, status, reviewedAt |
+| **SubmissionFile** | Uploaded files | submissionId, fileName, filePath, fileSize, mimeType |
 | **Feedback** | Supervisor feedback | projectId, submissionId, authorId, content, isRevisionRequest |
 | **Comment** | Threaded comments | projectId, authorId, content |
 
 ### Evaluation Models
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
-| **EvaluationRubric** | Grading rubric | name, totalMarks, isActive |
-| **RubricCriterion** | Rubric criteria | rubricId, name, description, maxMarks, weight, order |
-| **Evaluation** | Project evaluation | projectId, evaluatorId, scores, totalScore, comments, isReleased |
+| **EvaluationRubric** | Grading rubric | name, description, totalWeight, isActive |
+| **RubricCriterion** | Rubric criteria | rubricId, name, description, maxScore, weight, order |
+| **Evaluation** | Project evaluation | projectId, evaluatorId, rubricId, scores, totalScore, isReleased |
 | **DefenseSchedule** | Defense sessions | projectId, scheduledDate, venue, duration, evaluators, status |
 
 ### System Models
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
-| **Notification** | User notifications | userId, title, message, type, link, read |
+| **Notification** | User notifications | userId, title, message, type, link, isRead |
 | **Deadline** | FYP deadlines | title, date, scope, status |
-| **AuditLog** | Activity audit trail | userId, action, entityType, entityId, details, ipAddress |
+| **AuditLog** | Activity audit trail | userId, projectId, action, entityType, entityId, details, ipAddress |
 | **Setting** | System configuration | key, value |
-| **HealthScore** | Project health cache | projectId, score, level, factors, recommendations |
+
+> Health is stored on `Project` (`riskScore`, `riskLevel`, `lastHealthCheck`). There is no separate `HealthScore` collection, so there is no score history yet — a `HealthScoreHistory` collection would be needed for trend charts.
 
 ## API Endpoints
+
+> **Pagination:** list endpoints currently return the full collection (the seeded dataset is small). Add `?page=&limit=` with `.skip()`/`.limit()` before pointing this at a real cohort; the dashboard queries already cap themselves to what the UI needs.
 
 ### Authentication (`/api/v1/auth`)
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| POST | `/register` | Register new user | No |
-| POST | `/login` | User login | No |
+| POST | `/register` | Register a student or supervisor (ADMIN rejected) | No |
+| POST | `/login` | User login (10 failed attempts / 15 min per IP) | No |
+| GET | `/verify-email/:token` | Verify email token | No |
+| POST | `/forgot-password` | Request a reset token | No |
+| POST | `/reset-password` | Reset password with token | No |
 | GET | `/me` | Get current user | Yes |
+| PUT | `/me` | Update profile | Yes |
+| PUT | `/password` | Change password (rotates token + disconnects sockets) | Yes |
 | POST | `/logout` | User logout | Yes |
-| POST | `/change-password` | Change password (rotates tokens) | Yes |
 
 ### Student Routes (`/api/v1/student`)
 | Method | Endpoint | Description | Auth |
@@ -353,7 +397,7 @@ adapter).
 | POST | `/users` | Create user | Admin |
 | GET | `/projects` | All projects | Admin |
 | GET | `/assignments` | Assignments overview | Admin |
-| GET | `/assignments/recommendations` | Smart supervisor match | Admin |
+| GET | `/assignments/recommendations` | Rule-based supervisor match | Admin |
 | POST | `/assignments` | Assign supervisor | Admin |
 | GET | `/proposals` | All proposals | Admin |
 | POST | `/proposals/:id/decision` | Approve/reject proposal | Admin |
@@ -558,11 +602,16 @@ The `/api/v1` suffix matters for REST; the client strips it to get the socket or
 - MongoDB Atlas must allow Render's egress IPs. `0.0.0.0/0` is the simplest option for a demo cluster.
 - Vercel hosting of the API can stay as a REST-only fallback, but it can never serve WebSockets.
 
-## Testing Real-Time
+## Testing
 
-With the backend running locally (`PORT=5010`, database reachable) from `backend/`:
+There is no unit-test framework in the repo yet. What does exist is a real integration harness plus type-checked builds; run all three before shipping.
 
 ```bash
+# Type checks + production builds
+cd backend  && npm run build
+cd frontend && npm run build
+
+# Integration harness (backend running, database reachable), from backend/
 node rt-inspect.cjs   # fixture overview: students, projects, assignments
 node rt-test.cjs      # end-to-end socket test suite
 ```
@@ -576,9 +625,27 @@ node rt-test.cjs      # end-to-end socket test suite
 - several supervisor tabs each receiving one copy; presence counting users not sockets
 - heartbeat, reconnect presence, REST overviews, admin-only activity push
 
-It snapshots and restores the demo proposal/project so the seeded data is unchanged.
+It snapshots and restores the demo proposal/project so the seeded data is unchanged. Point it at another host with `RT_BASE=https://host node rt-test.cjs`.
 
-To verify in the browser: sign in as the student in one window and the supervisor in another, save a proposal draft as the student, and watch the supervisor's Live Activity panel update with no refresh. Then stop the API — the panel should switch to “Reconnecting…” and resume by itself when the API returns.
+Manual checks not covered by the harness:
+- **Login throttling:** 11 wrong passwords from one IP → the 11th returns 429; a correct password from a clean IP still works.
+- **Operator injection:** `POST /auth/login` with `{"email":{"$ne":null},"password":"x"}` returns 401 (sanitizer strips `$` keys).
+- **Browser flow:** student and supervisor in separate browser profiles, save a proposal draft as the student, watch the supervisor's panel update with no refresh. Stop the API and the panel switches to “Reconnecting…” (and the dashboard's polling error state), then recovers when the API returns.
+
+**Not implemented yet:** unit tests for scoring functions, Playwright/Cypress E2E for CRUD screens, and CI. GitHub Actions running the two builds plus `rt-test.cjs` against a seeded MongoDB service container is the natural next step.
+
+## File Storage
+
+Deliverables are uploaded with Multer to `backend/uploads` and referenced by `SubmissionFile.filePath`. That directory is **ephemeral** on Vercel and on Render's free instance: files disappear on redeploy/restart. For a real deployment, swap the Multer storage engine for one of:
+
+| Option | Free tier | Notes |
+|--------|-----------|-------|
+| **Cloudinary** | Yes | Simple `multer-storage-cloudinary` adapter |
+| **Supabase Storage** | Yes | S3-compatible API |
+| **Cloudflare R2** | Limited free allowance | May ask for a card |
+| **AWS S3** | 12-month trial | `multer-s3` adapter |
+
+Keep the DB row (`SubmissionFile`) and upload in one flow so a failed upload never creates a dangling record.
 
 ## Default Credentials
 
@@ -599,40 +666,21 @@ The Project Health Monitor uses an explainable rule-based scoring system to iden
 score = 0
 factors = []
 
-// Overdue milestones
-const overdueMilestones = milestones.filter(m => m.dueDate < now && m.status !== 'COMPLETED')
-if (overdueMilestones.length > 0) {
-  score += overdueMilestones.length * 20
-  factors.push({ label: `${overdueMilestones.length} overdue milestone(s)`, pts: overdueMilestones.length * 20, active: true })
-}
+// Overdue milestones: 20 each, capped at 40
+const overdue = milestones.filter(m => m.dueDate && m.dueDate < now && m.status !== 'COMPLETED')
+score += Math.min(overdue.length * 20, 40)
 
-// Missed deadlines (within 7 days past)
-const missedDeadlines = deadlines.filter(d => d.date < now && d.date > subDays(now, 7))
-if (missedDeadlines.length > 0) {
-  score += 15
-  factors.push({ label: 'Recent missed deadline', pts: 15, active: true })
-}
+// Inactivity (Project.updatedAt)
+const daysInactive = daysSince(project.updatedAt)
+score += daysInactive >= 30 ? 20 : daysInactive >= 14 ? 10 : 0
 
-// No activity in 14+ days
-const lastActivity = getLastActivity(project)
-if (differenceInDays(now, lastActivity) >= 14) {
-  score += 10
-  factors.push({ label: 'No updates in 14+ days', pts: 10, active: true })
-}
-
-// Repeated revision requests (3+)
+// Revision requests: 5 each, 15 once there are 3+
 const revisions = feedback.filter(f => f.isRevisionRequest).length
-if (revisions >= 3) {
-  score += 15
-  factors.push({ label: 'Repeated revision requests', pts: 15, active: true })
-}
+score += revisions >= 3 ? 15 : revisions * 5
 
-// Outstanding reviews (7+ days)
-const pendingReviews = submissions.filter(s => s.status === 'SUBMITTED' && differenceInDays(now, s.submittedAt) >= 7)
-if (pendingReviews.length > 0) {
-  score += 10
-  factors.push({ label: 'Reviews pending 7+ days', pts: 10, active: true })
-}
+// Submissions waiting on the supervisor: 3 each, capped at 9
+const pending = submissions.filter(s => s.status === 'UNDER_REVIEW' || s.status === 'NEEDS_REVISION')
+score += Math.min(pending.length * 3, 9)
 
 score = Math.min(score, 100)
 ```
@@ -644,6 +692,8 @@ score = Math.min(score, 100)
 | 25-49 | **MEDIUM** | Amber (#f59e0b) | Needs attention, monitor closely |
 | 50+ | **HIGH** | Red (#ef4444) | At risk, requires immediate supervisor intervention |
 
+**Threshold note:** with the current weights, a *single* overdue milestone contributes 20 points, which still lands in LOW (unless combined with revisions/inactivity). That is a deliberate threshold choice, not an accident: LOW means "no escalation yet", MEDIUM starts at 25. If you want one overdue deliverable to page a supervisor, either add a floor (`if (overdue.length) score = Math.max(score, 50)`), raise the per-milestone weight, or move the LOW/MEDIUM boundary to 20 — all in `backend/src/services/health.ts`.
+
 ### Recommendations Engine
 Based on active factors, the system generates actionable recommendations:
 - Overdue milestones → "Follow up on overdue milestones and adjust timeline"
@@ -653,38 +703,29 @@ Based on active factors, the system generates actionable recommendations:
 
 ## Smart Features Logic
 
-### 1. Smart Supervisor Matching
-Algorithm scores supervisors based on multiple factors:
+### 1. Supervisor Matching (rule-based, explainable)
+Ranking is deterministic arithmetic, not a trained model. The API also returns `matchedKeywords` and human-readable `reasons`, which is what makes the suggestion defensible to a panel.
 
 ```javascript
-score = 0
-
-// Workload capacity (45 points max)
-const load = currentAssignments[supervisorId] || 0
+const load = assignmentsFor(supervisorId)          // current projects
 const capacity = supervisor.maxSupervisees || 5
-const workloadRatio = 1 - Math.min(load / capacity, 1)
-score += 45 * workloadRatio
+const available = supervisor.availability !== false && load < capacity
 
-// Availability (15 points)
-if (supervisor.availability !== false && load < capacity) score += 15
+const workloadScore = Math.round(45 * (1 - Math.min(load / Math.max(capacity, 1), 1)))
+const availabilityScore = available ? 15 : 0
+const departmentScore = supervisor.sameDepartment ? 15 : 0
 
-// Research keyword overlap (25 points max)
-const projectKeywords = extractKeywords(project.title, project.abstract, proposal.*)
-const supervisorInterests = extractKeywords(supervisor.researchInterests)
-const matched = intersection(projectKeywords, supervisorInterests)
-score += Math.min(25, 10 + matched.length * 5)
+const matched = intersection(projectKeywords, supervisorKeywords)
+const researchScore = matched.length ? Math.min(25, 10 + matched.length * 5) : 0
 
-// Same department (15 points)
-if (supervisor.departmentId === project.departmentId) score += 15
-
-score = Math.min(100, Math.round(score))
+score = Math.min(100, workloadScore + availabilityScore + researchScore + departmentScore)
 ```
 
-**Keyword Extraction:**
-- Convert to lowercase
-- Remove stop words (the, and, for, with, using, system, project, etc.)
-- Filter words >= 3 characters
-- Use for matching algorithm
+**Current weights: workload 45 / availability 15 / research fit 25 / department 15.**
+
+- Zero keyword overlap scores 0, not a free 10 (the guard is in `adminController.ts`).
+- Trade-off worth stating in a viva: an idle supervisor with a weak topic match can outrank a good fit, because workload carries 45 points. Rebalancing to 35 / 15 / 35 / 15 (or moving to TF‑IDF/embeddings for topic similarity) is a deliberate design alternative, not a bug fix — change the weights in one place if you prefer fit over load.
+- **Keyword Extraction:** lowercase, stop-word removal (the, and, for, with, using, system, project, …), keep tokens of 3+ characters.
 
 ### 2. Defense Readiness Score
 Student dashboard calculates readiness across 4 components:

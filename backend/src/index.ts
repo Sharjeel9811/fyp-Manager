@@ -15,6 +15,7 @@ import notificationRoutes from './routes/notificationRoutes'
 import healthRoutes from './routes/healthRoutes'
 import realtimeRoutes from './routes/realtimeRoutes'
 import { errorHandler } from './middleware/errorHandler'
+import { sanitizeInput } from './middleware/sanitize'
 import { connectDB } from './config/database'
 import { initRealtime, allowedOrigins } from './services/realtime'
 
@@ -36,6 +37,7 @@ app.use(
 )
 app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: true }))
+app.use(sanitizeInput)
 
 app.use(
   '/api/',
