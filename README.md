@@ -516,7 +516,7 @@ npm run preview
 `render.yaml` in the repo root is a Render Blueprint for the API service. The frontend stays on Vercel.
 
 ### 1. Create the API service
-1. Push this repo to GitHub (already connected for the live deployment).
+1. The repo is already public on GitHub (`Sharjeel9811/fyp-Manager`); grant Render access to it if prompted.
 2. In Render: **New → Blueprint**, select the repo, apply the detected `render.yaml`.
 3. Render reads `backend/` as the root and runs:
    - Build: `npm install && npm run build`
@@ -554,6 +554,7 @@ The `/api/v1` suffix matters for REST; the client strips it to get the socket or
 ### Plan notes
 - Render **free** instances sleep after ~15 minutes of inactivity. The first request after sleep has a cold start and existing sockets drop; the client reconnects automatically and polling covers the gap. For always-on real-time, use the Starter plan.
 - Run exactly **one** instance. Presence/chat are in-process; multiple instances require the Socket.IO Redis adapter.
+- Rendered files (`backend/uploads`) live on the instance's ephemeral disk, so they disappear on redeploy. Attach a Render disk if uploads must survive.
 - MongoDB Atlas must allow Render's egress IPs. `0.0.0.0/0` is the simplest option for a demo cluster.
 - Vercel hosting of the API can stay as a REST-only fallback, but it can never serve WebSockets.
 
