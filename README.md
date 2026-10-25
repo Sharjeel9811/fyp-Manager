@@ -2,6 +2,19 @@
 
 A comprehensive, real-time enabled Final Year Project Management System designed for universities to streamline the entire FYP lifecycle - from proposal submission to defense evaluation. Built with modern technologies and intelligent features to make project management more efficient and unique.
 
+## Live Deployment
+
+| Service | URL |
+|---------|-----|
+| **Web App (Frontend)** | https://fypmanager.vercel.app |
+| **REST API (Backend)** | https://fyp-manager-api.vercel.app/api/v1 |
+| **API Health Check** | https://fyp-manager-api.vercel.app/health |
+| **Source Code** | https://github.com/Sharjeel9811/fyp-Manager |
+
+**Demo accounts** (password `password123` for all): `student@fypmanager.com`, `supervisor@fypmanager.com`, `admin@fypmanager.com`
+
+> **Note on hosting:** the backend runs as Vercel serverless functions, so long-lived Socket.IO connections are not kept open there. Every dashboard also polls its data (15s interval) and refetches on tab focus, so cross-role updates still propagate. Run the backend as a normal Node process (`npm run dev` / `npm start`) to get the full WebSocket real-time experience.
+
 ## Table of Contents
 - [Overview](#overview)
 - [Key Features](#key-features)

@@ -22,6 +22,9 @@ const app = express()
 const PORT = Number(process.env.PORT || 5000)
 const server = http.createServer(app)
 
+// Behind Vercel's proxy the client IP arrives in X-Forwarded-For.
+app.set('trust proxy', 1)
+
 app.use(helmet())
 app.use(
   cors({
