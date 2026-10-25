@@ -1,0 +1,383 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  SUPERVISOR
+  ADMIN
+}
+
+enum ProjectStatus {
+  PROPOSAL_DRAFT
+  PROPOSAL_SUBMITTED
+  PROPOSAL_UNDER_REVIEW
+  PROPOSAL_REVISION_REQUIRED
+  PROPOSAL_APPROVED
+  PROPOSAL_REJECTED
+  IN_PROGRESS
+  COMPLETED
+  SUSPENDED
+}
+
+enum MilestoneStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  NEEDS_REVISION
+  COMPLETED
+}
+
+enum SubmissionStatus {
+  PENDING
+  UNDER_REVIEW
+  NEEDS_REVISION
+  APPROVED
+  REJECTED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  role              UserRole
+  firstName         String
+  lastName          String
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?   @unique
+  passwordResetToken String?  @unique
+  passwordResetExpires DateTime?
+  lastLoginAt       DateTime?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  studentProfile    StudentProfile?
+  supervisorProfile SupervisorProfile?
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  comments          Comment[]
+  feedback          Feedback[]
+  evaluations       Evaluation[]
+}
+
+model StudentProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  studentId         String   @unique
+  departmentId      String
+  department        Department @relation(fields: [departmentId], references: [id])
+  phone             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  projectMembers    ProjectMember[]
+  submissions       Submission[]
+}
+
+model SupervisorProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  employeeId        String   @unique
+  departmentId      String
+  department        Department @relation(fields: [departmentId], references: [id])
+  researchInterests String?
+  availability      Boolean  @default(true)
+  maxSupervisees    Int      @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  assignments       SupervisorAssignment[]
+}
+
+model Department {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  code              String   @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  students          StudentProfile[]
+  supervisors       SupervisorProfile[]
+  projects          Project[]
+}
+
+model AcademicSession {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  projects          Project[]
+}
+
+model Project {
+  id                String        @id @default(uuid())
+  title             String
+  status            ProjectStatus @default(PROPOSAL_DRAFT)
+  departmentId      String
+  department        Department    @relation(fields: [departmentId], references: [id])
+  academicSessionId String
+  academicSession   AcademicSession @relation(fields: [academicSessionId], references: [id])
+  riskScore         Int           @default(0)
+  riskLevel         RiskLevel     @default(LOW)
+  lastHealthCheck   DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  proposal          Proposal?
+  members           ProjectMember[]
+  assignment        SupervisorAssignment?
+  milestones        Milestone[]
+  submissions       Submission[]
+  feedback          Feedback[]
+  comments          Comment[]
+  evaluations       Evaluation[]
+  defenseSchedule   DefenseSchedule?
+  activityLogs      AuditLog[]
+}
+
+model ProjectMember {
+  id                String         @id @default(uuid())
+  projectId         String
+  project           Project        @relation(fields: [projectId], references: [id])
+  studentId         String
+  student           StudentProfile @relation(fields: [studentId], references: [id])
+  role              String         @default("MEMBER")
+  joinedAt          DateTime       @default(now())
+
+  @@unique([projectId, studentId])
+}
+
+model Proposal {
+  id                String        @id @default(uuid())
+  projectId         String        @unique
+  project           Project       @relation(fields: [projectId], references: [id])
+  title             String
+  abstract          String        @db.Text
+  problemStatement  String        @db.Text
+  objectives        String        @db.Text
+  methodology       String        @db.Text
+  technologyStack   String        @db.Text
+  expectedOutcomes  String        @db.Text
+  status            ProjectStatus @default(PROPOSAL_DRAFT)
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewComments    String?       @db.Text
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  versions          ProposalVersion[]
+}
+
+model ProposalVersion {
+  id                String   @id @default(uuid())
+  proposalId        String
+  proposal          Proposal @relation(fields: [proposalId], references: [id])
+  versionNumber     Int
+  title             String
+  abstract          String   @db.Text
+  problemStatement  String   @db.Text
+  objectives        String   @db.Text
+  methodology       String   @db.Text
+  technologyStack   String   @db.Text
+  expectedOutcomes  String   @db.Text
+  submittedAt       DateTime @default(now())
+}
+
+model SupervisorAssignment {
+  id                String            @id @default(uuid())
+  projectId         String            @unique
+  project           Project           @relation(fields: [projectId], references: [id])
+  supervisorId      String
+  supervisor        SupervisorProfile @relation(fields: [supervisorId], references: [id])
+  assignedAt        DateTime          @default(now())
+  assignedBy        String?
+  notes             String?           @db.Text
+
+  @@unique([projectId, supervisorId])
+}
+
+model Milestone {
+  id                String          @id @default(uuid())
+  projectId         String
+  project           Project         @relation(fields: [projectId], references: [id])
+  title             String
+  description       String          @db.Text
+  startDate         DateTime
+  dueDate           DateTime
+  status            MilestoneStatus @default(NOT_STARTED)
+  completionPercentage Int           @default(0)
+  deliverableRequirements String?  @db.Text
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  tasks             Task[]
+  submissions       Submission[]
+}
+
+model Task {
+  id                String          @id @default(uuid())
+  milestoneId       String
+  milestone         Milestone       @relation(fields: [milestoneId], references: [id])
+  title             String
+  description       String?         @db.Text
+  status            MilestoneStatus @default(NOT_STARTED)
+  dueDate           DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model Submission {
+  id                String           @id @default(uuid())
+  projectId         String
+  project           Project          @relation(fields: [projectId], references: [id])
+  milestoneId       String?
+  milestone         Milestone?       @relation(fields: [milestoneId], references: [id])
+  studentId         String
+  student           StudentProfile   @relation(fields: [studentId], references: [id])
+  title             String
+  description       String?          @db.Text
+  status            SubmissionStatus @default(PENDING)
+  submittedAt       DateTime         @default(now())
+  reviewedAt        DateTime?
+  version           Int              @default(1)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  files             SubmissionFile[]
+  feedback          Feedback[]
+}
+
+model SubmissionFile {
+  id                String     @id @default(uuid())
+  submissionId      String
+  submission        Submission @relation(fields: [submissionId], references: [id])
+  fileName          String
+  filePath          String
+  fileSize          Int
+  mimeType          String
+  uploadedAt        DateTime   @default(now())
+}
+
+model Feedback {
+  id                String     @id @default(uuid())
+  projectId         String
+  project           Project    @relation(fields: [projectId], references: [id])
+  submissionId      String?
+  submission        Submission? @relation(fields: [submissionId], references: [id])
+  authorId          String
+  author            User       @relation(fields: [authorId], references: [id])
+  content           String     @db.Text
+  isRevisionRequest Boolean    @default(false)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+}
+
+model Comment {
+  id                String   @id @default(uuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id])
+  authorId          String
+  author            User     @relation(fields: [authorId], references: [id])
+  content           String   @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Notification {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  title             String
+  message           String   @db.Text
+  type              String
+  isRead            Boolean  @default(false)
+  link              String?
+  createdAt         DateTime @default(now())
+}
+
+model EvaluationRubric {
+  id                String           @id @default(uuid())
+  name              String
+  description       String?          @db.Text
+  isActive          Boolean          @default(true)
+  totalWeight       Int              @default(100)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  criteria          RubricCriterion[]
+  evaluations       Evaluation[]
+}
+
+model RubricCriterion {
+  id                String           @id @default(uuid())
+  rubricId          String
+  rubric            EvaluationRubric @relation(fields: [rubricId], references: [id])
+  name              String
+  description       String?          @db.Text
+  maxScore          Int
+  weight            Int
+  order             Int              @default(0)
+}
+
+model Evaluation {
+  id                String           @id @default(uuid())
+  projectId         String
+  project           Project          @relation(fields: [projectId], references: [id])
+  evaluatorId       String
+  evaluator         User             @relation(fields: [evaluatorId], references: [id])
+  rubricId          String
+  rubric            EvaluationRubric @relation(fields: [rubricId], references: [id])
+  scores            Json
+  totalScore        Float
+  comments          String?          @db.Text
+  isReleased        Boolean          @default(false)
+  evaluatedAt       DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model DefenseSchedule {
+  id                String   @id @default(uuid())
+  projectId         String   @unique
+  project           Project  @relation(fields: [projectId], references: [id])
+  scheduledDate     DateTime
+  venue             String
+  duration          Int      @default(30)
+  evaluators        Json
+  status            String   @default("SCHEDULED")
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id])
+  projectId         String?
+  project           Project? @relation(fields: [projectId], references: [id])
+  action            String
+  entityType        String
+  entityId          String?
+  details           Json?
+  ipAddress         String?
+  createdAt         DateTime @default(now())
+}
