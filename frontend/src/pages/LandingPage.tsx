@@ -106,7 +106,7 @@ export default function LandingPage() {
                   app.fypmanager.edu / supervisor / dashboard
                 </span>
               </div>
-              <div className="grid grid-cols-[190px_1fr]">
+              <div className="grid grid-cols-1 sm:grid-cols-[190px_1fr]">
                 <div className="hidden flex-col gap-1.5 bg-navy-950 p-3 sm:flex">
                   <div className="mb-2 flex items-center gap-2 px-1.5 py-1">
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-indigo-600">
