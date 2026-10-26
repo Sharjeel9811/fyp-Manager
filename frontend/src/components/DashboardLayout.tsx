@@ -7,10 +7,11 @@ import {
   MessageSquare, Award, Bell, UserCircle, FileSearch, ClipboardCheck, Activity,
   CalendarDays, BarChart3, Building2, GraduationCap, ShieldCheck, ScrollText,
   Settings, LogOut, Menu, X, ChevronDown, BookOpen, HelpCircle, CheckCheck, Search, Radio,
-  Copy,
+  Copy, Sun, Moon, Kanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth, type Role } from '@/context/AuthContext'
+import { useTheme } from '@/context/ThemeContext'
 import { Avatar } from '@/components/ui/Feedback'
 import { CommandPalette } from '@/components/CommandPalette'
 import { PageTransition } from '@/components/motion/PageTransition'
@@ -27,6 +28,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       title: 'My Project',
       items: [
         { label: 'Project Workspace', to: '/student/project', icon: FolderKanban },
+        { label: 'Task Board', to: '/student/kanban', icon: Kanban },
         { label: 'Proposal', to: '/student/proposal', icon: FileText },
         { label: 'Team', to: '/student/team', icon: Users },
         { label: 'Milestones', to: '/student/milestones', icon: ListChecks },
@@ -123,6 +125,7 @@ export function DashboardLayout({ role }: { role: Role }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user, logout } = useAuth()
+  const { theme, toggle: toggleTheme } = useTheme()
   const groups = navByRole[role]
   const commandItems = groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.title })))
 
@@ -214,7 +217,7 @@ export function DashboardLayout({ role }: { role: Role }) {
 
       <div className="border-t border-white/10 p-3">
         <div className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2.5">
-          <Avatar first={user?.firstName ?? ''} last={user?.lastName ?? ''} size="sm" />
+          <Avatar first={user?.firstName ?? ''} last={user?.lastName ?? ''} size="sm" src={user?.avatar ?? undefined} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-white">{user?.firstName} {user?.lastName}</p>
             <p className="truncate text-[11px] text-navy-400">{identifier}</p>
@@ -279,6 +282,15 @@ export function DashboardLayout({ role }: { role: Role }) {
               <Search className="h-3.5 w-3.5" />
               <span className="hidden md:inline">Search</span>
               <kbd className="hidden rounded border border-navy-200 bg-navy-50 px-1.5 py-0.5 font-mono text-[10px] text-navy-400 md:inline">Ctrl K</kbd>
+            </button>
+
+            <button
+              onClick={toggleTheme}
+              className="rounded-xl p-2.5 text-navy-500 transition-colors hover:bg-navy-100 hover:text-navy-800"
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+              title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
 
             <div className="relative">
@@ -352,7 +364,7 @@ export function DashboardLayout({ role }: { role: Role }) {
                 aria-label="Account menu"
                 aria-expanded={userMenu}
               >
-                <Avatar first={user?.firstName ?? ''} last={user?.lastName ?? ''} size="sm" />
+                <Avatar first={user?.firstName ?? ''} last={user?.lastName ?? ''} size="sm" src={user?.avatar ?? undefined} />
                 <ChevronDown className="hidden h-4 w-4 text-navy-500 sm:block" />
               </button>
               {userMenu && (

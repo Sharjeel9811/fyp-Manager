@@ -24,6 +24,7 @@ import {
 import { ProfilePage, NotificationsPage } from '@/pages/shared/ProfilePages'
 import { StudentLiveDefense, SupervisorLiveDefense, AdminLiveDefense } from '@/pages/defense/DefensePages'
 import { StudentMockDefense } from '@/pages/student/MockDefense'
+import { StudentKanban } from '@/pages/student/KanbanPage'
 import { Button } from '@/components/ui/Button'
 
 function NotFound() {
@@ -54,6 +55,7 @@ function App() {
         <Route path="proposal" element={<StudentProposal />} />
         <Route path="team" element={<StudentTeam />} />
         <Route path="milestones" element={<StudentMilestones />} />
+        <Route path="kanban" element={<StudentKanban />} />
         <Route path="submissions" element={<StudentSubmissions />} />
         <Route path="feedback" element={<StudentFeedback />} />
         <Route path="evaluations" element={<StudentEvaluations />} />

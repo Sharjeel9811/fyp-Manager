@@ -21,6 +21,7 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 - [Real-Time Features](#real-time-features)
 - [Live Defense Mode](#live-defense-mode)
 - [Similarity Check, GitHub Feed & Mock Defense](#similarity-check-github-feed--mock-defense)
+- [Kanban Board, Theme Switcher & Profile Pictures](#kanban-board-theme-switcher--profile-pictures)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Authentication & Security](#authentication--security)
@@ -54,6 +55,8 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Live Defense Room** - Follow the panel's shared countdown, see which rubric criterion is being discussed, watch evaluators submit in real time, and receive your released scores in the same page
 - **Mock Defense Practice** - Answer five panel-style questions about your proposal and get instant per-answer scoring, strengths, and improvement hints (LLM examiner when a key is configured, deterministic otherwise); results never touch official evaluations
 - **GitHub Contribution Feed** - Link the team's public repository and the project page shows live commits, contributors, and repository pulse
+- **Kanban Task Board** - Drag-and-drop board (`To do / In progress / In review / Done`) with priorities, assignees, and due dates; moves broadcast to the whole team over sockets
+- **Profile Picture** - Upload a photo from the profile page; it is resized in the browser and shows up in the sidebar, header, and dropdown instantly
 - **Defense Readiness Score** - Explainable, rule-based score (proposal, progress, submissions, health) with actionable recommendations
 - **Profile Management** - Update profile and change password with real-time token rotation
 
@@ -87,7 +90,7 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 ### UI/UX Enhancements
 - **Framer Motion Animations** - Smooth page transitions, card animations, modal effects
 - **Command Palette (Ctrl+K/Cmd+K)** - Quick navigation across the platform
-- **Dark/Light Theme Ready** - Modern, clean interface
+- **Dark/Light Theme** - One-click sun/moon switcher in the dashboard header; the choice is remembered per browser and the whole UI re-themes through CSS variables (no per-component dark variants)
 - **Responsive Design** - Works seamlessly on desktop and tablet
 - **Skeleton Loading States** - Better perceived performance
 - **Toast Notifications** - User feedback for all actions
@@ -284,6 +287,32 @@ A safe rehearsal of the real viva. Endpoints (`/api/v1/mockdefense`, JWT require
 - Supervisors are deliberately blocked (`403`): students practise, admins may review and start sessions for any project. Nothing here writes to `Evaluation` or affects official scoring.
 - The students' browsers never call Gemini/Groq/OpenRouter directly — every LLM request originates from the backend.
 
+## Kanban Board, Theme Switcher & Profile Pictures
+
+Three more features under the same ground rules: zero new dependencies, no file-system writes on the API (uploads live in MongoDB), and authorization re-checked inside the service.
+
+### Kanban Task Board (student workspace -> "Task board")
+
+A per-project shared board on `/student/kanban` with four columns — **To do / In progress / In review / Done** — backed by the `KanbanCard` collection (`/api/v1/kanban`). Cards carry a title, details, priority (`LOW/MEDIUM/HIGH`), an assignee (any team member), and an optional due date.
+
+- **Drag & drop is native HTML5 drag events** (no library): dropping on a column or another card sends `PATCH /kanban/cards/:id/move` with the destination column and the card to place after.
+- **Ordering is a sparse float**: the server positions the moved card at the midpoint of its new neighbours, so one drag writes **one row**, and two people moving cards at once cannot clobber each other's columns.
+- **The move is optimistic** (the card lands instantly); the server confirm refreshes the board, and a failure reverts via the 8-second polling refetch.
+- **Live updates**: every mutation emits `kanban:update` to the project's Socket.IO room; the 8-second query poll is the fallback when sockets are down (as on Vercel today).
+- **Access** mirrors the realtime project room — team members, the assigned supervisor, and admins can view and manage the board; everyone else gets `403`, re-checked in the service on every call.
+
+### Dark/Light Theme
+
+- The palette is pure CSS variables: `tailwind.config.js` maps `white`, `navy-*`, and `brand-*` onto `rgb(var(--x) / <alpha>)`, and `index.css` defines `:root` (light, original hex values) plus `html.dark` (inverted navy scale, dark card surfaces, tinted overrides so emerald/amber/red status chips stay readable).
+- Clicking the sun/moon button flips a single `dark` class on `<html>` (`ThemeContext`), so **no component needs its own `dark:` variants**.
+- The choice persists in `localStorage` (`fyp_theme`); a first visit follows the OS `prefers-color-scheme`.
+
+### Profile Pictures
+
+- The profile page avatar has a camera badge; picking an image centre-crops it to 256×256 in a canvas and uploads it as a base64 JPEG data URL (`PUT /api/v1/auth/avatar`, capped at 200 KB).
+- The server stores `{mime, data, uploadedAt}` on the **User document** (the serverless file system is ephemeral) and exposes it as a `data:` URI on `/auth/login` and `/auth/me`, so header/sidebar avatars render without an `<img>` auth header.
+- `DELETE /api/v1/auth/avatar` removes it; non-images and oversized payloads are rejected server-side too.
+
 ## Tech Stack
 
 ### Frontend
@@ -435,7 +464,7 @@ erDiagram
 ### Core Models
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
-| **User** | Base user account | email, passwordHash, role, tokenVersion, isActive |
+| **User** | Base user account | email, passwordHash, role, tokenVersion, isActive, avatar ({mime, data, uploadedAt} — profile picture as base64) |
 | **StudentProfile** | Student-specific data | userId, studentId, departmentId, phone, bio |
 | **SupervisorProfile** | Supervisor-specific data | userId, employeeId, departmentId, researchInterests, maxSupervisees, availability |
 | **Department** | Academic departments | name, code |
@@ -459,6 +488,7 @@ erDiagram
 | **SubmissionFile** | Uploaded files | submissionId, fileName, filePath, fileSize, mimeType |
 | **Feedback** | Supervisor feedback | projectId, submissionId, authorId, content, isRevisionRequest |
 | **Comment** | Threaded comments | projectId, authorId, content |
+| **KanbanCard** | Task board card | projectId, title, description, column (TODO/IN_PROGRESS/REVIEW/DONE), float order (sparse midpoint), assigneeStudentId, priority, dueDate, createdBy |
 
 ### Evaluation Models
 | Model | Purpose | Key Fields |
@@ -495,6 +525,8 @@ erDiagram
 | POST | `/reset-password` | Reset password with token | No |
 | GET | `/me` | Get current user | Yes |
 | PUT | `/me` | Update profile | Yes |
+| PUT | `/avatar` | Upload/replace profile picture (base64 data URL, ≤200 KB, png/jpeg/webp) | Yes |
+| DELETE | `/avatar` | Remove profile picture | Yes |
 | PUT | `/password` | Change password (rotates token + disconnects sockets) | Yes |
 | POST | `/logout` | User logout | Yes |
 
@@ -587,6 +619,17 @@ See [Mock Defense](#mock-defense-student-practice) for the full flow and provide
 | POST | `/projects/:projectId/start` | Start a 5-question practice session | Owning student, admin |
 | POST | `/sessions/:sessionId/answer` | Submit an answer, get score + feedback | Owning student only |
 
+### Kanban Routes (`/api/v1/kanban`)
+Authorization on every route: a team member of the project, the assigned supervisor, or an admin (others get 403). See [Kanban Task Board](#kanban-task-board-student-workspace---task-board).
+
+| Method | Endpoint | Description | Who |
+|--------|----------|-------------|-----|
+| GET | `/projects/:projectId` | Columns, cards, and team members for the assignee dropdown | Team + assigned supervisor/admin |
+| POST | `/projects/:projectId` | Create a card (title, details, column, priority, assignee, due date) | Team + assigned supervisor/admin |
+| PATCH | `/cards/:cardId` | Edit a card's fields | Team + assigned supervisor/admin |
+| PATCH | `/cards/:cardId/move` | `{column, afterCardId}` — server places the card at the midpoint of its new neighbours | Team + assigned supervisor/admin |
+| DELETE | `/cards/:cardId` | Delete a card | Team + assigned supervisor/admin |
+
 ### WebSocket Events
 
 #### Client → Server
@@ -621,6 +664,7 @@ See [Mock Defense](#mock-defense-student-practice) for the full flow and provide
 | `defense:scored` | `{sessionId, criterionId, evaluatorName, ...}` | "An evaluator locked a score" hint (panelists + admins only) |
 | `defense:ended` | `{sessionId, endedAt}` | Defense completed |
 | `defense:released` | Project state | Results published to students |
+| `kanban:update` | `{projectId, reason}` | A kanban card was created/updated/moved/deleted — clients refetch the board |
 
 ## Frontend Structure
 

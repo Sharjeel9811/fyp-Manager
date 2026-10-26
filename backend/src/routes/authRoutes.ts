@@ -30,6 +30,8 @@ router.post('/forgot-password', auth.forgotPassword)
 router.post('/reset-password', auth.resetPassword)
 router.get('/me', authenticate, auth.getMe)
 router.put('/me', authenticate, auth.updateMe)
+router.put('/avatar', authenticate, auth.uploadAvatar)
+router.delete('/avatar', authenticate, auth.removeAvatar)
 router.put('/password', authenticate, auth.changePassword)
 router.post('/logout', authenticate, auth.logout)
 

@@ -19,6 +19,8 @@ export interface AuthUser {
   departmentId: string | null
   maxSupervisees: number | null
   availability: boolean | null
+  /** Profile picture as a data: URI (null until the user uploads one). */
+  avatar: string | null
 }
 
 interface AuthContextValue {

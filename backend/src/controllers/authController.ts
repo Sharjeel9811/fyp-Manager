@@ -34,6 +34,9 @@ async function buildProfile(userId: string) {
     firstName: user.firstName,
     lastName: user.lastName,
     name: displayName(user.role, user),
+    // Sent as a data: URI so the <img> header avatar works without sending an
+    // Authorization header; absent when the user has never uploaded one.
+    avatar: user.avatar?.mime ? `data:${user.avatar.mime};base64,${user.avatar.data}` : null,
     emailVerified: user.emailVerified,
     isActive: user.isActive,
     studentId: student?.studentId || null,
@@ -169,6 +172,44 @@ export const updateMe = asyncHandler(async (req: AuthRequest, res) => {
 
   const profile = await buildProfile(String(user._id))
   res.json({ success: true, message: 'Profile updated', user: profile })
+})
+
+/**
+ * Upload (or replace) the caller's profile picture. The browser sends a square
+ * JPEG data URL it downscaled through canvas, so the payload stays small; the
+ * raw bytes are capped at 200 KB and stored in the user document — the prod
+ * API runs on an ephemeral filesystem, so uploaded media lives in MongoDB.
+ */
+const AVATAR_MAX_BYTES = 200 * 1024
+export const uploadAvatar = asyncHandler(async (req: AuthRequest, res) => {
+  const dataUrl = typeof req.body?.dataUrl === 'string' ? req.body.dataUrl : ''
+  const match = dataUrl.match(/^data:(image\/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=]+)$/)
+  if (!match) {
+    return res.status(400).json({ success: false, message: 'Send the picture as a base64 image data URL (png, jpeg, or webp)' })
+  }
+  const [, mime, base64] = match
+  const bytes = Buffer.from(base64, 'base64')
+  if (bytes.length === 0) return res.status(400).json({ success: false, message: 'The picture is empty' })
+  if (bytes.length > AVATAR_MAX_BYTES) {
+    return res.status(400).json({ success: false, message: 'Picture is too large — please pick one under 200 KB' })
+  }
+
+  const user: any = await User.findByIdAndUpdate(
+    req.user!.id,
+    { avatar: { mime, data: base64, uploadedAt: new Date() } },
+    { new: true }
+  )
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+
+  const profile = await buildProfile(String(user._id))
+  res.json({ success: true, message: 'Profile picture updated', user: profile })
+})
+
+export const removeAvatar = asyncHandler(async (req: AuthRequest, res) => {
+  const user: any = await User.findByIdAndUpdate(req.user!.id, { avatar: null }, { new: true })
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+  const profile = await buildProfile(String(user._id))
+  res.json({ success: true, message: 'Profile picture removed', user: profile })
 })
 
 export const changePassword = asyncHandler(async (req: AuthRequest, res) => {

@@ -10,6 +10,10 @@ const UserSchema = new Schema(
     role: { type: String, enum: ['STUDENT', 'SUPERVISOR', 'ADMIN'], required: true },
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
+    // Profile picture stored in the database (not the file system) because the
+    // API runs on an ephemeral serverless FS; `data` is raw base64 and the
+    // controller exposes it as a data: URI on /auth/me.
+    avatar: { type: { mime: String, data: String, uploadedAt: Date }, default: null },
     emailVerified: { type: Boolean, default: true },
     emailVerifyToken: { type: String, default: null },
     passwordResetToken: { type: String, default: null },
@@ -120,6 +124,24 @@ const TaskSchema = new Schema(
   { milestoneId: { type: ObjectId, ref: 'Milestone', required: true }, title: String, description: String, status: { type: String, default: 'NOT_STARTED' }, dueDate: Date },
   opts
 )
+
+const KanbanCardSchema = new Schema(
+  {
+    projectId: { type: ObjectId, ref: 'Project', required: true },
+    title: { type: String, required: true },
+    description: { type: String, default: '' },
+    // Board columns; `order` is a float kept sparse (midpoint-between-neighbours
+    // on move) so reordering never rewrites sibling rows.
+    column: { type: String, enum: ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'], default: 'TODO' },
+    order: { type: Number, default: 0 },
+    assigneeStudentId: { type: ObjectId, ref: 'StudentProfile', default: null },
+    priority: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], default: 'MEDIUM' },
+    dueDate: { type: Date, default: null },
+    createdBy: { type: ObjectId, ref: 'User', required: true },
+  },
+  { toJSON: { virtuals: true }, ...opts }
+)
+KanbanCardSchema.index({ projectId: 1, column: 1, order: 1 })
 
 const SubmissionSchema = new Schema(
   {
@@ -308,6 +330,7 @@ export const DefenseSchedule = mongoose.model('DefenseSchedule', DefenseSchedule
 export const DefenseSession = mongoose.model('DefenseSession', DefenseSessionSchema)
 export const DefenseScore = mongoose.model('DefenseScore', DefenseScoreSchema)
 export const MockDefense = mongoose.model('MockDefense', MockDefenseSchema)
+export const KanbanCard = mongoose.model('KanbanCard', KanbanCardSchema)
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema)
 export const Deadline = mongoose.model('Deadline', DeadlineSchema)
 export const Setting = mongoose.model('Setting', SettingSchema)

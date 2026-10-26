@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail, Building2, BadgeCheck, Bell, Check, Lock, Trash2 } from 'lucide-react'
+import { Mail, Building2, BadgeCheck, Bell, Check, Lock, Trash2, Camera } from 'lucide-react'
 import { PageHeader, ErrorState, SkeletonPage, EmptyState } from '@/components/shared/Common'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -32,8 +32,52 @@ export function ProfilePage({ role }: { role: 'STUDENT' | 'SUPERVISOR' | 'ADMIN'
 
   const saveProfile = useApiMutation((payload: any) => api.put('/auth/me', payload))
   const changePassword = useApiMutation((payload: any) => api.put('/auth/password', payload))
+  const uploadAvatar = useApiMutation((dataUrl: string) => api.put('/auth/avatar', { dataUrl }))
+  const removeAvatar = useApiMutation(() => api.delete('/auth/avatar'))
+  const [avatarMessage, setAvatarMessage] = useState('')
 
   if (!user) return <SkeletonPage />
+
+  /**
+   * Resize whatever the user picked to a 256×256 square JPEG in the browser
+   * (canvas keeps the centre crop), so the upload is always < 200 KB and the
+   * backend never has to guard against multi-megabyte photo payloads.
+   */
+  const handleAvatarFile = async (file: File | undefined) => {
+    setAvatarMessage('')
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setAvatarMessage('Please choose an image file')
+      return
+    }
+    try {
+      const bitmapUrl = URL.createObjectURL(file)
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image()
+        el.onload = () => resolve(el)
+        el.onerror = () => reject(new Error('Could not read the image'))
+        el.src = bitmapUrl
+      })
+      const size = 256
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas is not available')
+      // Centre-crop to square: scale the smaller edge, trim the longer.
+      const scale = Math.max(size / img.width, size / img.height)
+      const w = img.width * scale
+      const h = img.height * scale
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h)
+      URL.revokeObjectURL(bitmapUrl)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      const res: any = await uploadAvatar.mutateAsync(dataUrl)
+      if (res.data?.user) updateUser(res.data.user)
+      setAvatarMessage(res.data?.message || 'Profile picture updated')
+    } catch (err: any) {
+      setAvatarMessage(err?.message || 'Could not upload the picture')
+    }
+  }
 
   const handleProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -82,10 +126,44 @@ export function ProfilePage({ role }: { role: 'STUDENT' | 'SUPERVISOR' | 'ADMIN'
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="p-6">
           <div className="flex flex-col items-center text-center">
-            <Avatar first={user.firstName} last={user.lastName} size="lg" />
+            <div className="relative">
+              <Avatar first={user.firstName} last={user.lastName} size="lg" src={user.avatar ?? undefined} />
+              <label
+                className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-white ring-2 ring-white transition-colors hover:bg-brand-700"
+                title="Upload a profile picture"
+              >
+                <Camera className="h-4 w-4" />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg"
+                  className="sr-only"
+                  onChange={async (e) => {
+                    await handleAvatarFile(e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+            </div>
             <h2 className="mt-3 text-lg font-semibold text-navy-900">{user.firstName} {user.lastName}</h2>
             <p className="text-sm text-navy-500">{user.studentId || user.employeeId || '—'}</p>
             <Badge variant="brand" className="mt-2">{titleCase(role)}</Badge>
+            {avatarMessage && <p className="mt-2 text-xs font-medium text-brand-700">{avatarMessage}</p>}
+            {user.avatar && (
+              <button
+                className="mt-2 inline-flex items-center gap-1 text-xs text-red-600 hover:underline"
+                onClick={async () => {
+                  try {
+                    const res: any = await removeAvatar.mutateAsync()
+                    if (res.data?.user) updateUser(res.data.user)
+                    setAvatarMessage(res.data?.message || 'Profile picture removed')
+                  } catch (err: any) {
+                    setAvatarMessage(err.message)
+                  }
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remove picture
+              </button>
+            )}
             <div className="mt-5 w-full space-y-2.5 text-left text-sm">
               <div className="flex items-center gap-2 text-navy-600"><Mail className="h-4 w-4 text-navy-400" /> {user.email}</div>
               <div className="flex items-center gap-2 text-navy-600"><Building2 className="h-4 w-4 text-navy-400" /> {user.department || 'No department'}</div>

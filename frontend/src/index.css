@@ -5,6 +5,61 @@
 @layer base {
   :root {
     --ring: 79 70 229;
+
+    /* Light palette (matches the previous hex values). `html.dark` swaps the
+       navy scale to an inverted dark reading list below, which re-themes the
+       whole UI without any per-component dark: variants. */
+    --white: 255 255 255;
+    --navy-50: 248 250 252;
+    --navy-100: 241 245 249;
+    --navy-200: 226 232 240;
+    --navy-300: 203 213 225;
+    --navy-400: 148 163 184;
+    --navy-500: 100 116 139;
+    --navy-600: 71 85 105;
+    --navy-700: 51 65 85;
+    --navy-800: 30 41 59;
+    --navy-900: 15 23 42;
+    --navy-950: 8 13 26;
+
+    --brand-50: 238 242 255;
+    --brand-100: 224 231 255;
+    --brand-200: 199 210 254;
+    --brand-300: 165 180 252;
+    --brand-400: 129 140 248;
+    --brand-500: 99 102 241;
+    --brand-600: 79 70 229;
+    --brand-700: 67 56 202;
+    --brand-800: 55 48 163;
+    --brand-900: 49 46 129;
+    --brand-950: 30 27 75;
+  }
+
+  html.dark {
+    --white: 20 29 46; /* card surface */
+    --navy-50: 12 18 32; /* page background */
+    --navy-100: 28 41 66; /* inset chips / panels */
+    --navy-200: 45 59 87; /* borders */
+    --navy-300: 63 76 102; /* borders / icons */
+    --navy-400: 148 163 184; /* muted icons stay readable */
+    --navy-500: 168 182 201; /* secondary text */
+    --navy-600: 198 208 222;
+    --navy-700: 217 225 236;
+    --navy-800: 233 238 245;
+    --navy-900: 246 249 252;
+    --navy-950: 6 10 20; /* sidebar */
+
+    --brand-50: 30 27 75; /* tinted chip backgrounds */
+    --brand-100: 49 46 129;
+    --brand-200: 55 48 163;
+    --brand-300: 165 180 252;
+    --brand-400: 129 140 248;
+    --brand-500: 129 140 248;
+    --brand-600: 165 180 252; /* links/buttons stay bright */
+    --brand-700: 129 140 248;
+    --brand-800: 129 140 248;
+    --brand-900: 199 210 254;
+    --brand-950: 224 231 255;
   }
 
   * {
@@ -94,3 +149,39 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+/* ---------------------------------------------------------------------------
+ * Dark-theme fine tuning. These rules sit outside @layer so they win over
+ * Tailwind utilities from any layer: semantic status chips keep their pastel
+ * bgcolor (bg-emerald-50) from the light theme otherwise. Same treatment for
+ * the accent scales the app uses for badges, hints, and alerts.
+ * ------------------------------------------------------------------------- */
+html.dark {
+  color-scheme: dark;
+}
+
+/* Unlayered rules take precedence over Tailwind's layered utilities. */
+html.dark .bg-emerald-50 { background-color: rgb(6 78 59); }
+html.dark .bg-amber-50 { background-color: rgb(120 53 15); }
+html.dark .bg-red-50 { background-color: rgb(127 29 29); }
+html.dark .bg-sky-50 { background-color: rgb(12 74 110); }
+html.dark .bg-orange-50 { background-color: rgb(124 45 18); }
+html.dark .bg-green-50 { background-color: rgb(20 83 45); }
+
+html.dark .text-emerald-700 { color: rgb(110 231 183); }
+html.dark .text-amber-700 { color: rgb(252 211 77); }
+html.dark .text-amber-600 { color: rgb(251 191 36); }
+html.dark .text-red-700 { color: rgb(252 165 165); }
+html.dark .text-red-600 { color: rgb(248 113 113); }
+html.dark .text-sky-700 { color: rgb(125 211 252); }
+html.dark .text-orange-700 { color: rgb(251 146 60); }
+html.dark .text-green-700 { color: rgb(134 239 172); }
+
+html.dark .ring-emerald-200 { --tw-ring-color: rgb(6 78 59); }
+html.dark .ring-amber-200 { --tw-ring-color: rgb(120 53 15); }
+html.dark .ring-red-200 { --tw-ring-color: rgb(127 29 29); }
+html.dark .ring-sky-200 { --tw-ring-color: rgb(12 74 110); }
+html.dark .ring-red-500 { --tw-ring-color: rgb(220 38 38); }
+/* Skeleton shimmer, hover states, and the navy/brand palettes follow the variable swaps automatically. */
+
+/* touch: force dev re-transform */
