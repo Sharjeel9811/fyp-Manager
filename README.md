@@ -20,6 +20,7 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 - [Key Features](#key-features)
 - [Real-Time Features](#real-time-features)
 - [Live Defense Mode](#live-defense-mode)
+- [Similarity Check, GitHub Feed & Mock Defense](#similarity-check-github-feed--mock-defense)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Authentication & Security](#authentication--security)
@@ -51,6 +52,8 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Feedback & Comments** - Receive and respond to supervisor feedback
 - **Defense & Evaluation** - View defense schedule and released evaluations
 - **Live Defense Room** - Follow the panel's shared countdown, see which rubric criterion is being discussed, watch evaluators submit in real time, and receive your released scores in the same page
+- **Mock Defense Practice** - Answer five panel-style questions about your proposal and get instant per-answer scoring, strengths, and improvement hints (LLM examiner when a key is configured, deterministic otherwise); results never touch official evaluations
+- **GitHub Contribution Feed** - Link the team's public repository and the project page shows live commits, contributors, and repository pulse
 - **Defense Readiness Score** - Explainable, rule-based score (proposal, progress, submissions, health) with actionable recommendations
 - **Profile Management** - Update profile and change password with real-time token rotation
 
@@ -77,6 +80,7 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Rubrics & Evaluations** - Configure evaluation criteria
 - **Defense Scheduling** - Schedule and manage defense panels
 - **Live Defense Control** - Start/end sessions, move the panel through the rubric, unlock a mistaken score, and release results to students
+- **Proposal Similarity Check** - On-demand TF-IDF + cosine duplicate scan across all proposals with flagged pairs, shared terms, and team names for manual review
 - **Audit Logs** - Complete activity trail
 - **System Settings** - Configure system-wide parameters
 
@@ -232,6 +236,53 @@ Every mutation writes an `AuditLog` row (`Started live defense`, `Submitted defe
 - The live timer is advisory: reaching `00:00` does not auto-end the session; a coordinator presses **End defense**.
 - Session state lives in MongoDB (survives restarts), but socket fan-out is in-process like the rest of the realtime layer, so run one API instance or add the Redis adapter.
 - Scores are per evaluator per criterion; there is no offline queue, so a lost connection means the panelist retries after reconnecting.
+
+## Similarity Check, GitHub Feed & Mock Defense
+
+Three self-contained features that follow the same ground rules as the rest of the platform: zero new dependencies, LLM/API keys stay server-side, and authorization is re-checked inside the service, not only at the route.
+
+### Proposal Similarity (admin)
+
+`GET /api/v1/admin/similarity` compares every stored proposal pairwise on demand (no background job, no external service):
+
+1. Each proposal becomes one document built from `title` (weighted ×3), `abstract`, `problemStatement`, `objectives`, and `methodology`.
+2. A hand-rolled TF-IDF vectoriser runs over the whole corpus (title is strongest, then abstract, then methodology).
+3. Pair similarity is the cosine of the two term vectors.
+4. Pairs at or above **0.28** (28%) are flagged; every pair above 0.6 × threshold is listed (capped at 40 pairs, highest first) with its top 6 shared terms and team-member names.
+
+The response also carries `checked`, `flaggedCount`, `highest`, and `flaggedThreshold`. The threshold and limits live in `backend/src/services/similarity.ts`. This is an explainable similarity *measure* — a lead for a supervisor conversation, not proof of plagiarism; an n-gram/fingerprint engine is the upgrade path if a real plagiarism check is ever required.
+
+### GitHub Contribution Feed
+
+Students link the public repository the team develops in, and the project workspace shows the repo's pulse:
+
+- **Link:** `PUT /api/v1/student/project/repo` accepts `https://github.com/owner/repo(.git)` or a bare `owner/repo`. Any other host (GitLab, Bitbucket, arbitrary URLs) is rejected so a non-GitHub target can never be requested through the GitHub API.
+- **Feed:** `GET /api/v1/github/projects/:projectId` returns repo metadata (stars, open issues, default branch, last push), the last 10 commits, and top contributors.
+- **Access:** the viewer must be a team member, the assigned supervisor, or an admin — the same rule as the realtime project room — checked again inside the service on every call.
+- **Cost control:** the backend calls `api.github.com` unauthenticated (60 req/hour per IP is enough for a class-wide demo) with a 10-second timeout, a friendly error for a missing/private repo (`404`), `429` when GitHub's rate limit is exhausted, and a **5-minute in-memory cache** keyed by `owner/repo` so any role opening the same project re-uses the last fetch (`fresh: false`).
+- The frontend (`GitHubFeed` component) refreshes every 60 seconds and shows a "Cached 5 min" / "Live fetch" badge so nobody wonders how old the data is.
+
+### Mock Defense (student practice)
+
+A safe rehearsal of the real viva. Endpoints (`/api/v1/mockdefense`, JWT required):
+
+| Method | Endpoint | Who | Purpose |
+|--------|----------|-----|---------|
+| GET | `/projects/:projectId/latest` | Owning student, admin | Newest session (in progress or finished, so the results screen survives a reload) + last 5 finished sessions |
+| POST | `/projects/:projectId/start` | Owning student, admin | Start a session: 5 panel questions drawn from the proposal; joins an existing `ACTIVE` session instead of stacking a new one |
+| POST | `/sessions/:sessionId/answer` | Owning student only | Judge the next unanswered round: score 0–10, feedback, up to 4 strengths and 4 improvements; the 5th answer writes a percentage summary |
+
+**Examiner providers** — the first configured key wins, tried in order with a 30-second timeout and tolerant JSON parsing (models sometimes wrap the object in prose or code fences):
+
+| Env key (backend only) | Provider | Model |
+|------------------------|----------|-------|
+| `GEMINI_API_KEY` | Gemini | `gemini-2.0-flash` |
+| `GROQ_API_KEY` | Groq | `llama-3.3-70b-versatile` |
+| `OPENROUTER_API_KEY` | OpenRouter | `google/gemini-2.0-flash-exp:free` |
+
+- With no key configured the service falls back to a deterministic **RULE_BASED** examiner: a 10-question panel bank (problem, methodology, stack, evaluation, risk, …) plus a keyword-coverage judge that scores 0–10 from answer length, proposal-keyword coverage, and specificity — zero keys, zero cost, fully reproducible in tests. The provider is stored on every `MockDefense` session so rule-based and model-judged results are distinguishable.
+- Supervisors are deliberately blocked (`403`): students practise, admins may review and start sessions for any project. Nothing here writes to `Evaluation` or affects official scoring.
+- The students' browsers never call Gemini/Groq/OpenRouter directly — every LLM request originates from the backend.
 
 ## Tech Stack
 
@@ -393,7 +444,7 @@ erDiagram
 ### Project Workflow Models
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
-| **Project** | FYP project instance | title, abstract, status, currentStage, departmentId, academicSessionId, riskScore, riskLevel |
+| **Project** | FYP project instance | title, abstract, status, currentStage, departmentId, academicSessionId, riskScore, riskLevel, githubRepo |
 | **ProjectMember** | Team members | projectId, studentId, role |
 | **Proposal** | Project proposal | projectId, title, abstract, objectives, methodology, status, version, submittedAt |
 | **ProposalVersion** | Proposal history | proposalId, versionNumber, all proposal fields |
@@ -418,6 +469,7 @@ erDiagram
 | **DefenseSchedule** | Defense sessions | projectId, scheduledDate, venue, duration, evaluators, status |
 | **DefenseSession** | Live defense round | projectId, rubricId, criteria snapshot, panel snapshot, status (LIVE/COMPLETED), currentCriterionId, startedAt, endsAt, resultsReleased |
 | **DefenseScore** | One evaluator's score for one criterion | sessionId, evaluatorId, criterionId, score, comment, submitted, submittedAt — unique per (sessionId, evaluatorId, criterionId) |
+| **MockDefense** | Mock defense practice session | projectId, userId, provider (GEMINI/GROQ/OPENROUTER/RULE_BASED), status (ACTIVE/FINISHED), rounds[] (question, answer, score, feedback, strengths, improvements), totalScore, maxScore, summary |
 
 ### System Models
 | Model | Purpose | Key Fields |
@@ -461,6 +513,7 @@ erDiagram
 | GET | `/feedback` | Get feedback | Student |
 | POST | `/comments` | Add comment | Student |
 | GET | `/evaluations` | Get evaluations & defense | Student |
+| PUT | `/project/repo` | Link the team's public GitHub repository (enables the contribution feed) | Student |
 
 ### Supervisor Routes (`/api/v1/supervisor`)
 | Method | Endpoint | Description | Auth |
@@ -496,6 +549,7 @@ erDiagram
 | POST | `/evaluations/schedule` | Schedule defense | Admin |
 | GET | `/audit-logs` | Audit trail | Admin |
 | GET | `/settings` | System settings | Admin |
+| GET | `/similarity` | On-demand TF-IDF + cosine proposal similarity report | Admin |
 
 ### Real-Time Routes (`/api/v1/realtime`)
 | Method | Endpoint | Description | Auth |
@@ -516,6 +570,22 @@ All endpoints require a JWT; every mutation re-checks permission inside the serv
 | POST | `/sessions/:sessionId/end` | End the session, write evaluations | Panel, assigned supervisor, admin |
 | POST | `/sessions/:sessionId/unlock` | Unlock an evaluator's score | Admin (while live) |
 | POST | `/sessions/:sessionId/release` | Release results to students | Admin (after end) |
+
+### GitHub Feed Routes (`/api/v1/github`)
+Access is re-checked per request against project membership / assigned supervisor / admin (same rule as the realtime room).
+
+| Method | Endpoint | Description | Who |
+|--------|----------|-------------|-----|
+| GET | `/projects/:projectId` | Repo metadata + last 10 commits + contributors (5-minute server cache behind api.github.com) | Team member, assigned supervisor, admin |
+
+### Mock Defense Routes (`/api/v1/mockdefense`)
+See [Mock Defense](#mock-defense-student-practice) for the full flow and provider fallback chain.
+
+| Method | Endpoint | Description | Who |
+|--------|----------|-------------|-----|
+| GET | `/projects/:projectId/latest` | Newest session + last 5 finished | Owning student, admin |
+| POST | `/projects/:projectId/start` | Start a 5-question practice session | Owning student, admin |
+| POST | `/sessions/:sessionId/answer` | Submit an answer, get score + feedback | Owning student only |
 
 ### WebSocket Events
 
@@ -613,6 +683,11 @@ MONGODB_URI=mongodb://localhost:27017/fyp_manager
 JWT_SECRET=your_super_secret_jwt_key_here
 JWT_EXPIRE=7d
 FRONTEND_URL=http://localhost:5173
+# Optional — enable the LLM mock-defense examiner (try in this order; without
+# any of them the deterministic rule-based examiner is used)
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
 ```
 
 ```bash

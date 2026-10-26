@@ -13,6 +13,7 @@ import { fmtDate, fmtDateTime, relativeTime, titleCase } from '@/lib/format'
 import { useApiQuery, useApiMutation } from '@/hooks/useApi'
 import { useAuth } from '@/context/AuthContext'
 import api from '@/lib/api'
+import { GitHubFeed } from '@/components/GitHubFeed'
 
 const textareaClass =
   'w-full rounded-xl border border-navy-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 shadow-sm transition-colors placeholder:text-navy-400 hover:border-navy-300 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10'
@@ -93,6 +94,13 @@ export function StudentProject() {
             ))}
           </ul>
         </Card>
+      </div>
+
+      <div className="mt-5">
+        <SectionHeader title="GitHub contributions" description="Commits, contributors, and repository pulse for the team's repo." />
+        <div className="mt-3">
+          <GitHubFeed projectId={project.id} />
+        </div>
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">

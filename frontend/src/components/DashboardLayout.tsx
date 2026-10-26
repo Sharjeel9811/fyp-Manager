@@ -7,6 +7,7 @@ import {
   MessageSquare, Award, Bell, UserCircle, FileSearch, ClipboardCheck, Activity,
   CalendarDays, BarChart3, Building2, GraduationCap, ShieldCheck, ScrollText,
   Settings, LogOut, Menu, X, ChevronDown, BookOpen, HelpCircle, CheckCheck, Search, Radio,
+  Copy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth, type Role } from '@/context/AuthContext'
@@ -38,6 +39,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         { label: 'Feedback', to: '/student/feedback', icon: MessageSquare },
         { label: 'Evaluations', to: '/student/evaluations', icon: Award },
         { label: 'Live Defense', to: '/student/defense', icon: Radio },
+        { label: 'Mock Defense', to: '/student/mock-defense', icon: GraduationCap },
         { label: 'Notifications', to: '/student/notifications', icon: Bell },
         { label: 'Profile', to: '/student/profile', icon: UserCircle },
       ],
@@ -84,6 +86,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Evaluations', to: '/admin/evaluations', icon: Award },
         { label: 'Live Defense', to: '/admin/defense', icon: Radio },
+        { label: 'Similarity Check', to: '/admin/similarity', icon: Copy },
         { label: 'Reports', to: '/admin/reports', icon: BarChart3 },
       ],
     },

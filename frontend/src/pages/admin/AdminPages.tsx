@@ -3,9 +3,10 @@ import { motion } from 'framer-motion'
 import {
   Users, GraduationCap, FolderKanban, ShieldCheck,
   Award, Download, Plus, CheckCircle2, AlertTriangle, TrendingUp, UserPlus, Save, X, Sparkles,
+  Copy,
 } from 'lucide-react'
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'
-import { PageHeader, StatCard, StatusPill, HealthPill, SectionHeader, ErrorState, SkeletonPage } from '@/components/shared/Common'
+import { PageHeader, StatCard, StatusPill, HealthPill, SectionHeader, ErrorState, SkeletonPage, EmptyState } from '@/components/shared/Common'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -850,6 +851,84 @@ export function AdminSettings() {
           {message && <span className="text-sm font-medium text-brand-700">{message}</span>}
         </div>
       </form>
+    </div>
+  )
+}
+
+export function AdminSimilarity() {
+  const { data, isLoading, error, refetch } = useApiQuery<any>(['admin', 'similarity'], '/admin/similarity')
+
+  if (isLoading) return <SkeletonPage />
+  if (error) return <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
+
+  const pairs: any[] = data?.pairs ?? []
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Integrity"
+        title="Proposal similarity"
+        description="TF-IDF + cosine comparison across every proposal in the session, computed on demand with no external service."
+      />
+
+      <div className="grid gap-4 sm:grid-cols-4">
+        <StatCard label="Proposals checked" value={data?.checked ?? 0} icon={FolderKanban} tone="brand" />
+        <StatCard label="Flagged pairs" value={data?.flaggedCount ?? 0} icon={AlertTriangle} tone={data?.flaggedCount ? 'danger' : 'success'} />
+        <StatCard label="Highest similarity" value={`${Math.round((data?.highest ?? 0) * 100)}%`} icon={TrendingUp} tone="info" />
+        <StatCard label="Flag threshold" value={`${Math.round((data?.flaggedThreshold ?? 0) * 100)}%`} icon={ShieldCheck} tone="info" />
+      </div>
+
+      {pairs.length === 0 ? (
+        <div className="mt-5">
+          <EmptyState
+            icon={Copy}
+            title="No similar proposals detected"
+            description="Every checked proposal sits below the 28% flag threshold. This changes automatically as more teams submit proposals."
+          />
+        </div>
+      ) : (
+        <div className="mt-5 space-y-3">
+          {pairs.map((p, i) => (
+            <Card key={`${p.aId}-${p.bId}-${i}`} className={cn('p-5', p.flagged && 'border-red-200 bg-red-50/40')}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={p.flagged ? 'danger' : 'neutral'}>
+                      <Copy className="h-3.5 w-3.5" /> {Math.round(p.similarity * 100)}% similar
+                    </Badge>
+                    {p.flagged && <Badge variant="warning">Manual review</Badge>}
+                  </div>
+                  <p className="mt-2 truncate text-sm font-semibold text-navy-900">{p.aTitle}</p>
+                  <p className="text-xs text-navy-400">{p.aProject} {p.aMembers?.length ? `· ${p.aMembers.join(', ')}` : ''}</p>
+                  <p className="mt-1.5 truncate text-sm font-semibold text-navy-900">{p.bTitle}</p>
+                  <p className="text-xs text-navy-400">{p.bProject} {p.bMembers?.length ? `· ${p.bMembers.join(', ')}` : ''}</p>
+                </div>
+                <div className="w-full shrink-0 sm:w-72">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-navy-100">
+                    <div
+                      className={cn(
+                        'h-full rounded-full',
+                        p.flagged ? 'bg-red-500' : p.similarity >= (data?.flaggedThreshold ?? 0.28) * 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
+                      )}
+                      style={{ width: `${Math.min(100, Math.round(p.similarity * 100))}%` }}
+                    />
+                  </div>
+                  {p.sharedTerms?.length > 0 && (
+                    <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-navy-400">
+                      Shared terms: {p.sharedTerms.join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-4 text-xs text-navy-400">
+        Similarity is a similarity measure, not proof of plagiarism — the flagged list is a lead for conversation. The threshold lives in
+        <code className="mx-1 rounded bg-navy-100 px-1">backend/src/services/similarity.ts</code>.
+      </p>
     </div>
   )
 }

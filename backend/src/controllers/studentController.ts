@@ -278,6 +278,7 @@ async function buildStudentBundle(userId: string) {
       id: String(project._id),
       title: project.title,
       status: project.status,
+      githubRepo: project.githubRepo || null,
       supervisor,
       department: department?.name || '—',
       session: session?.name || '—',
@@ -311,6 +312,28 @@ export const getProject = asyncHandler(async (req: AuthRequest, res: Response) =
     timeline: bundle.timeline,
     stats: bundle.stats,
   })
+})
+
+/** The team links (or re-points) the public GitHub repository it develops in. */
+export const updateRepo = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const ctx = await getStudentContext(req.user!.id)
+  if (!ctx || !ctx.project) return res.status(404).json({ success: false, message: 'No project found' })
+
+  const { parseRepoUrl } = await import('../services/github')
+  const repo = parseRepoUrl(req.body?.repoUrl)
+  if (!repo) {
+    return res.status(400).json({ success: false, message: 'Link must be a GitHub repository such as https://github.com/owner/repo' })
+  }
+  await Project.updateOne({ _id: ctx.project._id }, { githubRepo: repo })
+  await writeAudit({
+    userId: req.user!.id,
+    projectId: String(ctx.project._id),
+    action: 'Linked GitHub repository',
+    entityType: 'Project',
+    entityId: String(ctx.project._id),
+    details: { title: ctx.project.title, repo },
+  })
+  res.json({ success: true, message: `Repository ${repo} linked`, githubRepo: repo })
 })
 
 export const getProposal = asyncHandler(async (req: AuthRequest, res: Response) => {

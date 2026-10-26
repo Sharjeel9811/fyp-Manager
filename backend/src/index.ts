@@ -15,6 +15,8 @@ import notificationRoutes from './routes/notificationRoutes'
 import healthRoutes from './routes/healthRoutes'
 import realtimeRoutes from './routes/realtimeRoutes'
 import defenseRoutes from './routes/defenseRoutes'
+import githubRoutes from './routes/githubRoutes'
+import mockDefenseRoutes from './routes/mockDefenseRoutes'
 import { errorHandler } from './middleware/errorHandler'
 import { sanitizeInput } from './middleware/sanitize'
 import { connectDB } from './config/database'
@@ -60,6 +62,8 @@ app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/notifications', notificationRoutes)
 app.use('/api/v1/realtime', realtimeRoutes)
 app.use('/api/v1/defense', defenseRoutes)
+app.use('/api/v1/github', githubRoutes)
+app.use('/api/v1/mockdefense', mockDefenseRoutes)
 
 app.use((_req, res) => res.status(404).json({ success: false, message: 'Route not found' }))
 app.use(errorHandler)

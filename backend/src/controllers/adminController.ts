@@ -11,6 +11,7 @@ import {
   asyncHandler, displayName, fullName, projectProgress, stageFor, statusLabel, writeAudit,
 } from '../utils/helpers'
 import { broadcastActivity, emitToUser } from '../services/realtime'
+import { compareProposals, projectTeamNames } from '../services/similarity'
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   IN_PROGRESS: { label: 'In Progress', color: '#4f46e5' },
@@ -542,6 +543,25 @@ export const releaseEvaluations = asyncHandler(async (req: AuthRequest, res: Res
   }
   await writeAudit({ userId: req.user!.id, action: 'Released evaluation results', entityType: 'Evaluation', details: { count: result.modifiedCount } })
   res.json({ success: true, message: `Released ${result.modifiedCount} evaluation(s)` })
+})
+
+export const getSimilarity = asyncHandler(async (_req: AuthRequest, res: Response) => {
+  const report = await compareProposals()
+  const ids = Array.from(new Set(report.pairs.flatMap((p) => [p.aId, p.bId])))
+  // Map proposal id -> members through the proposal's project id.
+  const proposals: any[] = await Proposal.find({ _id: { $in: ids } }).select('projectId').lean()
+  const proposalById = new Map(proposals.map((p: any) => [String(p._id), p]))
+  const teamByProject = await projectTeamNames(Array.from(new Set(proposals.map((p: any) => String(p.projectId)))))
+  const pairs = report.pairs.map((p) => {
+    const a: any = proposalById.get(p.aId)
+    const b: any = proposalById.get(p.bId)
+    return {
+      ...p,
+      aMembers: a ? teamByProject.get(String(a.projectId)) || [] : [],
+      bMembers: b ? teamByProject.get(String(b.projectId)) || [] : [],
+    }
+  })
+  res.json({ success: true, ...report, pairs })
 })
 
 export const getReports = asyncHandler(async (_req: AuthRequest, res: Response) => {

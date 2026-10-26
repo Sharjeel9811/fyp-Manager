@@ -57,6 +57,9 @@ const ProjectSchema = new Schema(
     abstract: String,
     currentStage: { type: String, default: 'Proposal' },
     startedAt: Date,
+    // Public GitHub repository the team develops in; drives the contribution
+    // feed. Stored as the full URL the student entered ("owner/repo" accepted).
+    githubRepo: { type: String, default: null },
   },
   opts
 )
@@ -237,6 +240,35 @@ const DefenseScoreSchema = new Schema(
 DefenseScoreSchema.index({ sessionId: 1, evaluatorId: 1, criterionId: 1 }, { unique: true })
 DefenseScoreSchema.index({ sessionId: 1, submitted: 1 })
 
+const MockDefenseSchema = new Schema(
+  {
+    projectId: { type: ObjectId, ref: 'Project', required: true },
+    userId: { type: ObjectId, ref: 'User', required: true },
+    // Where the questions came from, so results stay honest when a key is
+    // missing and the deterministic fallback generator answers.
+    provider: { type: String, enum: ['GEMINI', 'GROQ', 'OPENROUTER', 'RULE_BASED'], default: 'RULE_BASED' },
+    status: { type: String, enum: ['ACTIVE', 'FINISHED'], default: 'ACTIVE' },
+    rounds: [
+      {
+        question: String,
+        answer: String,
+        score: Number,
+        feedback: String,
+        strengths: [String],
+        improvements: [String],
+        askedAt: Date,
+        answeredAt: Date,
+      },
+    ],
+    totalScore: { type: Number, default: 0 },
+    maxScore: { type: Number, default: 0 },
+    summary: String,
+    finishedAt: Date,
+  },
+  opts
+)
+MockDefenseSchema.index({ projectId: 1, userId: 1, createdAt: -1 })
+
 const AuditLogSchema = new Schema(
   { userId: { type: ObjectId, ref: 'User', default: null }, projectId: { type: ObjectId, ref: 'Project', default: null }, action: String, entityType: String, entityId: String, details: Object, ipAddress: String, createdAt: { type: Date, default: Date.now } },
   opts
@@ -275,6 +307,7 @@ export const Evaluation = mongoose.model('Evaluation', EvaluationSchema)
 export const DefenseSchedule = mongoose.model('DefenseSchedule', DefenseScheduleSchema)
 export const DefenseSession = mongoose.model('DefenseSession', DefenseSessionSchema)
 export const DefenseScore = mongoose.model('DefenseScore', DefenseScoreSchema)
+export const MockDefense = mongoose.model('MockDefense', MockDefenseSchema)
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema)
 export const Deadline = mongoose.model('Deadline', DeadlineSchema)
 export const Setting = mongoose.model('Setting', SettingSchema)
