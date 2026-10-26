@@ -184,6 +184,59 @@ const DefenseScheduleSchema = new Schema(
   opts
 )
 
+const DefenseSessionSchema = new Schema(
+  {
+    projectId: { type: ObjectId, ref: 'Project', required: true },
+    scheduleId: { type: ObjectId, ref: 'DefenseSchedule', default: null },
+    rubricId: { type: ObjectId, ref: 'EvaluationRubric', required: true },
+    criteria: [
+      {
+        criterionId: { type: ObjectId, ref: 'RubricCriterion' },
+        name: String,
+        maxScore: Number,
+        weight: Number,
+        order: { type: Number, default: 0 },
+      },
+    ],
+    // Snapshot of who may score. Names come from DefenseSchedule.evaluators;
+    // the assigned supervisor is always included so a panel is never empty.
+    panel: [{ userId: { type: ObjectId, ref: 'User' }, name: String }],
+    status: { type: String, enum: ['LIVE', 'COMPLETED'], default: 'LIVE' },
+    currentCriterionId: { type: ObjectId, default: null },
+    durationMinutes: { type: Number, default: 30 },
+    startedAt: { type: Date, default: Date.now },
+    endsAt: { type: Date, required: true },
+    endedAt: { type: Date, default: null },
+    resultsReleased: { type: Boolean, default: false },
+    releasedAt: { type: Date, default: null },
+    createdBy: { type: ObjectId, ref: 'User' },
+  },
+  opts
+)
+DefenseSessionSchema.index({ projectId: 1, status: 1 })
+DefenseSessionSchema.index({ projectId: 1, createdAt: -1 })
+
+const DefenseScoreSchema = new Schema(
+  {
+    sessionId: { type: ObjectId, ref: 'DefenseSession', required: true },
+    projectId: { type: ObjectId, ref: 'Project', required: true },
+    evaluatorId: { type: ObjectId, ref: 'User', required: true },
+    evaluatorName: String,
+    criterionId: { type: ObjectId, ref: 'RubricCriterion', required: true },
+    criterionName: String,
+    maxScore: Number,
+    weight: Number,
+    score: { type: Number, min: 0 },
+    comment: String,
+    submitted: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: null },
+  },
+  opts
+)
+// One live score per evaluator per criterion; re-submission updates the row.
+DefenseScoreSchema.index({ sessionId: 1, evaluatorId: 1, criterionId: 1 }, { unique: true })
+DefenseScoreSchema.index({ sessionId: 1, submitted: 1 })
+
 const AuditLogSchema = new Schema(
   { userId: { type: ObjectId, ref: 'User', default: null }, projectId: { type: ObjectId, ref: 'Project', default: null }, action: String, entityType: String, entityId: String, details: Object, ipAddress: String, createdAt: { type: Date, default: Date.now } },
   opts
@@ -220,6 +273,8 @@ export const EvaluationRubric = mongoose.model('EvaluationRubric', EvaluationRub
 export const RubricCriterion = mongoose.model('RubricCriterion', RubricCriterionSchema)
 export const Evaluation = mongoose.model('Evaluation', EvaluationSchema)
 export const DefenseSchedule = mongoose.model('DefenseSchedule', DefenseScheduleSchema)
+export const DefenseSession = mongoose.model('DefenseSession', DefenseSessionSchema)
+export const DefenseScore = mongoose.model('DefenseScore', DefenseScoreSchema)
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema)
 export const Deadline = mongoose.model('Deadline', DeadlineSchema)
 export const Setting = mongoose.model('Setting', SettingSchema)

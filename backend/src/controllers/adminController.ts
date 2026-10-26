@@ -512,6 +512,8 @@ export const getEvaluations = asyncHandler(async (_req: AuthRequest, res: Respon
   }))
 
   const top = rows.slice().sort((a, b) => b.totalScore - a.totalScore)[0]
+  const evaluatedProjects = new Set(rows.map((r) => r.projectId)).size
+  const awaiting = new Set(rows.filter((r) => !r.isReleased).map((r) => r.projectId)).size
 
   res.json({
     success: true,
@@ -519,9 +521,9 @@ export const getEvaluations = asyncHandler(async (_req: AuthRequest, res: Respon
     criteria: criteria.map((c: any) => ({ id: String(c._id), criterion: c.name, max: c.maxScore, weight: c.weight })),
     evaluations: rows,
     stats: {
-      evaluated: rows.length,
+      evaluated: evaluatedProjects,
       totalProjects: projects.length,
-      awaitingRelease: rows.filter((r) => !r.isReleased).length,
+      awaitingRelease: awaiting,
       topScore: top ? { project: top.project, score: top.totalScore } : null,
     },
   })

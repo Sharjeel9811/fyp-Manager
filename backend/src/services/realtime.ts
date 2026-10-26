@@ -370,6 +370,12 @@ export function emitToUser(userId: string, event: string, payload: any) {
   io.to(`user:${String(userId)}`).emit(event, payload)
 }
 
+/** Broadcast to a project room (only members who joined via `room:join`). */
+export function emitToProject(projectId: string, event: string, payload: any) {
+  if (!io) return
+  io.to(`project:${String(projectId)}`).emit(event, payload)
+}
+
 /**
  * Fan out one activity item to the people allowed to see it:
  *  - all supervisors + admins (oversight)

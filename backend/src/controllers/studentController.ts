@@ -103,15 +103,29 @@ async function buildStudentBundle(userId: string) {
 
   const healthResult = await calculateProjectHealth(String(project._id))
 
-  const evaluation: any = await Evaluation.findOne({ projectId: project._id, isReleased: true }).lean()
+  const releasedEvaluations: any[] = await Evaluation.find({ projectId: project._id, isReleased: true }).lean()
+  const evaluation = releasedEvaluations[0] || null
   const evaluations = evaluation
-    ? evaluation.scores.map((s: any) => ({
-        id: String(s._id || s.criterionId),
-        criterion: s.name,
-        score: s.score,
-        max: s.max,
-        weight: s.weight,
-      }))
+    ? (evaluation.scores || []).map((s: any, index: number) => {
+        const values = releasedEvaluations
+          .map((e: any) => {
+            const entry =
+              (e.scores || []).find((x: any) => String(x.criterionId) === String(s.criterionId)) ||
+              (e.scores || [])[index]
+            return entry && typeof entry.score === 'number' ? entry.score : null
+          })
+          .filter((v: any) => v !== null) as number[]
+        const score = values.length
+          ? Math.round((values.reduce((a: number, b: number) => a + b, 0) / values.length) * 10) / 10
+          : s.score
+        return {
+          id: String(s.criterionId || s._id || index),
+          criterion: s.name,
+          score,
+          max: s.max,
+          weight: s.weight,
+        }
+      })
     : []
 
   const pendingReviews = submissions.filter((s: any) => s.status === 'UNDER_REVIEW').length
@@ -234,7 +248,7 @@ async function buildStudentBundle(userId: string) {
     proposal,
     defense,
     evaluations,
-    evaluationReleased: !!evaluation,
+    evaluationReleased: releasedEvaluations.length > 0,
     health: {
       score: healthResult.score,
       level: healthResult.level,

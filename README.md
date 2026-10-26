@@ -19,6 +19,7 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 - [Overview](#overview)
 - [Key Features](#key-features)
 - [Real-Time Features](#real-time-features)
+- [Live Defense Mode](#live-defense-mode)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Authentication & Security](#authentication--security)
@@ -49,6 +50,7 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Document Submission** - Upload deliverables with submission history
 - **Feedback & Comments** - Receive and respond to supervisor feedback
 - **Defense & Evaluation** - View defense schedule and released evaluations
+- **Live Defense Room** - Follow the panel's shared countdown, see which rubric criterion is being discussed, watch evaluators submit in real time, and receive your released scores in the same page
 - **Defense Readiness Score** - Explainable, rule-based score (proposal, progress, submissions, health) with actionable recommendations
 - **Profile Management** - Update profile and change password with real-time token rotation
 
@@ -59,6 +61,7 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Milestone Management** - Track milestone progress across projects
 - **Project Health Monitor** - Rule-based risk assessment with explanations
 - **Evaluation Schedule** - View upcoming defense schedules
+- **Live Defense Scoring** - Score the current rubric criterion during the defense; scores lock on submit and the panel aggregate updates instantly
 - **Supervision Reports** - Analytics and CSV exports
 - **Real-time Notifications** - Instant alerts for new submissions
 
@@ -73,6 +76,7 @@ FYP Manager is a full-stack web application that digitizes and automates the Fin
 - **Deadlines Management** - Set and track FYP deadlines
 - **Rubrics & Evaluations** - Configure evaluation criteria
 - **Defense Scheduling** - Schedule and manage defense panels
+- **Live Defense Control** - Start/end sessions, move the panel through the rubric, unlock a mistaken score, and release results to students
 - **Audit Logs** - Complete activity trail
 - **System Settings** - Configure system-wide parameters
 
@@ -150,6 +154,84 @@ Rejected handshakes close with `unauthorized` or `session-expired`; the client s
 - **Token-Based Auth** - Socket handshake uses the stored JWT (`fyp_token`)
 - **Dashboard Integration** - Live Activity Panel on all role dashboards
 - **Event Hooks** - Backend emits events after successful database writes only
+
+## Live Defense Mode
+
+A defense becomes a shared live session instead of a form filled in after the fact. The panel scores the rubric together, everyone sees the same countdown and criterion, and students see progress but never scores until the coordinator releases them.
+
+### Session lifecycle
+
+```
+(no session) --start--> LIVE --end--> COMPLETED --release--> COMPLETED + resultsReleased
+                            |                 |
+                            |                 +-- start another defense --> new LIVE session
+                            +-- next/score/unlock (admin only)
+```
+
+- **One live session per project.** `POST /projects/:projectId/start` returns `409` if one is already `LIVE`.
+- **Snapshots at start.** The active rubric (criteria, max scores, weights) and the panel are copied into the session. Editing the rubric later never changes a running defense.
+- **Server-owned clock.** The session stores `startedAt` / `endsAt`; the client derives the countdown from `serverNow` in each payload, so a wrong device clock does not skew the timer.
+- **Ending is idempotent.** Only the first `end` writes `endedAt` and materialises evaluations.
+- **A defense supersedes a prior evaluation by the same evaluator.** `end` upserts one `Evaluation` per submitting evaluator using `(projectId, evaluatorId)`; that is what the existing release flow and student results page read. Only criteria the evaluator actually locked are written, so a partly scored session cannot surface as zeros.
+
+### Who can do what
+
+| Action | Student (team member) | Panel supervisor | Assigned supervisor | Admin |
+|--------|----------------------|------------------|---------------------|-------|
+| Read defense state | Yes (public view) | Yes | Yes | Yes |
+| See live aggregate / evaluator names | No (until release) | Yes | Yes | Yes |
+| Start / advance / end | No | Yes | Yes | Yes |
+| Submit a score | No | Yes | Yes | **No** |
+| Unlock a locked score | No | No | No | Yes (while `LIVE`) |
+| Release results | No | No | No | Yes (after `COMPLETED`) |
+
+Panel membership is resolved once at start:
+1. the project's **assigned supervisor** is always included, and
+2. every active supervisor whose name matches a `DefenseSchedule.evaluators` entry (normalised, `Dr.` prefix ignored) is added.
+
+`DefenseSchedule.evaluators` stores names, not user ids, so this name match is the only link to accounts. Renaming a supervisor or editing the schedule only affects **future** sessions; existing sessions keep their snapshot in `DefenseSession.panel`.
+
+### Scoring and release rules
+
+- A score is validated against `0 ≤ score ≤ criterion.maxScore`, then stored and **locked** (`submitted: true`). Re-submitting returns `409`.
+- Only an **admin** can unlock, and only while the session is `LIVE`; the evaluator can then submit again.
+- `aggregate.rows[].scores[]` and `aggregate.evaluators[]` are populated **only** on the detailed view (panel + admins). The public/student payload keeps averages and submission counts but drops evaluator identities, even after release.
+- Releasing (`ADMIN` only, after `COMPLETED`) sets `resultsReleased`, marks the project's `Evaluation` rows released, writes a notification per team member, and pushes `defense:released`.
+- Releasing is one-way; the UI offers **Start another defense** to run a new round.
+
+### Socket contract
+
+The defense page joins the existing project room (`room:join`, same membership check as chat) for public updates. Panelists and admins additionally receive targeted events on their `user:<id>` / role rooms, which is why a supervisor sees live scores without being a project member.
+
+| Event | Sent to | Payload (important parts) |
+|-------|---------|---------------------------|
+| `defense:state` | project room | `project`, `schedule`, `session` (criteria, current criterion, timer), `permissions`, `progress`, `aggregate` (`null` until released) |
+| `defense:detail` | panel `user:` rooms + `role:ADMIN` | same shape **plus** aggregate rows with per-evaluator scores |
+| `defense:scored` | other panelists + admins | `{sessionId, criterionId, criterionName, evaluatorName, submittedAt}` (never sent to the project room) |
+| `defense:ended` | project room | `{sessionId, endedAt}` |
+| `defense:released` | project room | public state with `resultsReleased: true` and averages |
+
+The client writes these payloads straight into the TanStack Query cache (`['defense', projectId]`) and keeps the 15-second poll as a fallback; a public payload never overwrites a detailed one, so a panelist's aggregate cannot be clobbered by their project-room copy.
+
+### REST endpoints (`/api/v1/defense`, all authenticated)
+
+| Method | Endpoint | Purpose | Allowed |
+|--------|----------|---------|---------|
+| GET | `/projects/:projectId` | Full state for the project (sanitised per role) | Any project audience, panel, admin |
+| POST | `/projects/:projectId/start` | Start a `LIVE` session (`durationMinutes`, 5–180) | Panel, assigned supervisor, admin |
+| POST | `/sessions/:sessionId/score` | Lock a score (`criterionId`, `score`, `comment`) | Panel evaluators only |
+| POST | `/sessions/:sessionId/next` | Move to the next criterion | Panel, assigned supervisor, admin |
+| POST | `/sessions/:sessionId/end` | Complete the session and write evaluations | Panel, assigned supervisor, admin |
+| POST | `/sessions/:sessionId/unlock` | Unlock an evaluator's score (`evaluatorId`, `criterionId`) | Admin, while `LIVE` |
+| POST | `/sessions/:sessionId/release` | Publish results to students | Admin, after `COMPLETED` |
+
+Every mutation writes an `AuditLog` row (`Started live defense`, `Submitted defense score`, `Unlocked defense score`, `Ended live defense`, `Released live defense results`), and the defense actions are re-authorised inside the service — route guards are the first check, not the only one.
+
+### Known limits
+
+- The live timer is advisory: reaching `00:00` does not auto-end the session; a coordinator presses **End defense**.
+- Session state lives in MongoDB (survives restarts), but socket fan-out is in-process like the rest of the realtime layer, so run one API instance or add the Redis adapter.
+- Scores are per evaluator per criterion; there is no offline queue, so a lost connection means the panelist retries after reconnecting.
 
 ## Tech Stack
 
@@ -290,6 +372,9 @@ erDiagram
   Submission ||--o{ Feedback : about
   Project ||--o{ Comment : collects
   Project ||--o| DefenseSchedule : schedules
+  Project ||--o{ DefenseSession : runs
+  DefenseSession ||--o{ DefenseScore : collects
+  User ||--o{ DefenseScore : submits
   Project ||--o{ Evaluation : graded_by
   User ||--o{ Evaluation : evaluates
   EvaluationRubric ||--o{ RubricCriterion : defines
@@ -331,6 +416,8 @@ erDiagram
 | **RubricCriterion** | Rubric criteria | rubricId, name, description, maxScore, weight, order |
 | **Evaluation** | Project evaluation | projectId, evaluatorId, rubricId, scores, totalScore, isReleased |
 | **DefenseSchedule** | Defense sessions | projectId, scheduledDate, venue, duration, evaluators, status |
+| **DefenseSession** | Live defense round | projectId, rubricId, criteria snapshot, panel snapshot, status (LIVE/COMPLETED), currentCriterionId, startedAt, endsAt, resultsReleased |
+| **DefenseScore** | One evaluator's score for one criterion | sessionId, evaluatorId, criterionId, score, comment, submitted, submittedAt — unique per (sessionId, evaluatorId, criterionId) |
 
 ### System Models
 | Model | Purpose | Key Fields |
@@ -417,6 +504,19 @@ erDiagram
 | GET | `/presence?userId=` | Check a user's presence | Yes |
 | POST | `/activity` | Push activity event | Admin only |
 
+### Live Defense Routes (`/api/v1/defense`)
+All endpoints require a JWT; every mutation re-checks permission inside the service (see [Live Defense Mode](#live-defense-mode) for the authorization matrix).
+
+| Method | Endpoint | Description | Who |
+|--------|----------|-------------|-----|
+| GET | `/projects/:projectId` | Defense state for the project | Project audience / panel / admin |
+| POST | `/projects/:projectId/start` | Start a live session | Panel, assigned supervisor, admin |
+| POST | `/sessions/:sessionId/score` | Submit & lock a criterion score | Panel evaluators |
+| POST | `/sessions/:sessionId/next` | Move to the next criterion | Panel, assigned supervisor, admin |
+| POST | `/sessions/:sessionId/end` | End the session, write evaluations | Panel, assigned supervisor, admin |
+| POST | `/sessions/:sessionId/unlock` | Unlock an evaluator's score | Admin (while live) |
+| POST | `/sessions/:sessionId/release` | Release results to students | Admin (after end) |
+
 ### WebSocket Events
 
 #### Client → Server
@@ -446,6 +546,11 @@ erDiagram
 | `typing:update` | `{roomId, users[]}` | Typing users update |
 | `notification:new` | `Notification` | Real-time notification |
 | `activity:pong` | `{ts, online}` | Heartbeat response |
+| `defense:state` | Project state | Defense update for the project room (aggregate `null` until released) |
+| `defense:detail` | Project state | Detailed defense state with live aggregate (panelists + admins only) |
+| `defense:scored` | `{sessionId, criterionId, evaluatorName, ...}` | "An evaluator locked a score" hint (panelists + admins only) |
+| `defense:ended` | `{sessionId, endedAt}` | Defense completed |
+| `defense:released` | Project state | Results published to students |
 
 ## Frontend Structure
 
@@ -458,6 +563,7 @@ frontend/src/
 │   ├── DashboardLayout.tsx   # Main layout with sidebar, header, nav
 │   ├── CommandPalette.tsx    # Ctrl+K navigation
 │   ├── LiveActivityPanel.tsx # Real-time activity feed
+│   ├── LiveDefensePanel.tsx  # Live defense room (timer, scoring, aggregate)
 │   └── ProjectChat.tsx       # Real-time project chat
 ├── context/
 │   ├── AuthContext.tsx       # Authentication state
@@ -475,6 +581,7 @@ frontend/src/
 │   ├── student/              # Student dashboards & pages
 │   ├── supervisor/           # Supervisor dashboards & pages
 │   ├── admin/                # Admin dashboards & pages
+│   ├── defense/              # Role-based live defense pages
 │   └── shared/               # Shared pages (Profile, Notifications)
 └── App.tsx                   # Route configuration
 ```
@@ -612,8 +719,9 @@ cd backend  && npm run build
 cd frontend && npm run build
 
 # Integration harness (backend running, database reachable), from backend/
-node rt-inspect.cjs   # fixture overview: students, projects, assignments
-node rt-test.cjs      # end-to-end socket test suite
+node rt-inspect.cjs         # fixture overview: students, projects, assignments
+node rt-test.cjs            # end-to-end socket test suite
+node rt-defense-test.cjs    # end-to-end live defense test suite
 ```
 
 `rt-test.cjs` logs in as student, second student, supervisor and admin, then verifies:
@@ -626,6 +734,18 @@ node rt-test.cjs      # end-to-end socket test suite
 - heartbeat, reconnect presence, REST overviews, admin-only activity push
 
 It snapshots and restores the demo proposal/project so the seeded data is unchanged. Point it at another host with `RT_BASE=https://host node rt-test.cjs`.
+
+`rt-defense-test.cjs` (37 checks) runs the full live-defense flow against the same fixtures, then restores the project's sessions, scores, evaluations and defense notifications:
+
+- student reads own project's defense state; an unrelated student gets `403` on both REST and sockets
+- students can't start or score; scores above the criterion max are rejected
+- supervisor starts the session (rubric + panel snapshot, server timer) and scores lock on submit (`409` on repeat)
+- a supervisor named on the schedule panel can evaluate without being the assigned supervisor (4 expected evaluators)
+- students see submission progress via `defense:state` but never scores; the panel/admins receive `defense:detail` upgrades and `defense:scored` hints live
+- admin advances the criterion, sees students follow via sockets, unlocks an evaluator's score (evaluator re-submits after)
+- admin coordinates but **cannot** score
+- ending writes one `Evaluation` per submitting panellist; the student's aggregate stays hidden until the admin releases
+- release publishes averages (no evaluator identities) over `defense:released`, notifies the team, and the student evaluations page shows the panel average per criterion
 
 Manual checks not covered by the harness:
 - **Login throttling:** 11 wrong passwords from one IP → the 11th returns 429; a correct password from a clean IP still works.

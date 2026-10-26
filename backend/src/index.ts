@@ -14,6 +14,7 @@ import adminRoutes from './routes/adminRoutes'
 import notificationRoutes from './routes/notificationRoutes'
 import healthRoutes from './routes/healthRoutes'
 import realtimeRoutes from './routes/realtimeRoutes'
+import defenseRoutes from './routes/defenseRoutes'
 import { errorHandler } from './middleware/errorHandler'
 import { sanitizeInput } from './middleware/sanitize'
 import { connectDB } from './config/database'
@@ -58,6 +59,7 @@ app.use('/api/v1/supervisor', supervisorRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/notifications', notificationRoutes)
 app.use('/api/v1/realtime', realtimeRoutes)
+app.use('/api/v1/defense', defenseRoutes)
 
 app.use((_req, res) => res.status(404).json({ success: false, message: 'Route not found' }))
 app.use(errorHandler)

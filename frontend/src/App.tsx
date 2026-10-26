@@ -21,6 +21,7 @@ import {
   AdminAssignments, AdminDeadlines, AdminEvaluations, AdminReports, AdminAuditLogs, AdminSettings,
 } from '@/pages/admin/AdminPages'
 import { ProfilePage, NotificationsPage } from '@/pages/shared/ProfilePages'
+import { StudentLiveDefense, SupervisorLiveDefense, AdminLiveDefense } from '@/pages/defense/DefensePages'
 import { Button } from '@/components/ui/Button'
 
 function NotFound() {
@@ -54,6 +55,7 @@ function App() {
         <Route path="submissions" element={<StudentSubmissions />} />
         <Route path="feedback" element={<StudentFeedback />} />
         <Route path="evaluations" element={<StudentEvaluations />} />
+        <Route path="defense" element={<StudentLiveDefense />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage role="STUDENT" />} />
       </Route>
@@ -67,6 +69,7 @@ function App() {
         <Route path="milestones" element={<SupervisorMilestones />} />
         <Route path="health" element={<SupervisorHealth />} />
         <Route path="schedule" element={<SupervisorSchedule />} />
+        <Route path="defense" element={<SupervisorLiveDefense />} />
         <Route path="reports" element={<SupervisorReports />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage role="SUPERVISOR" />} />
@@ -83,6 +86,7 @@ function App() {
         <Route path="assignments" element={<AdminAssignments />} />
         <Route path="deadlines" element={<AdminDeadlines />} />
         <Route path="evaluations" element={<AdminEvaluations />} />
+        <Route path="defense" element={<AdminLiveDefense />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="audit-logs" element={<AdminAuditLogs />} />
         <Route path="settings" element={<AdminSettings />} />

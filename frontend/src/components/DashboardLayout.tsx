@@ -6,7 +6,7 @@ import {
   LayoutDashboard, FolderKanban, FileText, Users, ListChecks, UploadCloud,
   MessageSquare, Award, Bell, UserCircle, FileSearch, ClipboardCheck, Activity,
   CalendarDays, BarChart3, Building2, GraduationCap, ShieldCheck, ScrollText,
-  Settings, LogOut, Menu, X, ChevronDown, BookOpen, HelpCircle, CheckCheck, Search,
+  Settings, LogOut, Menu, X, ChevronDown, BookOpen, HelpCircle, CheckCheck, Search, Radio,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth, type Role } from '@/context/AuthContext'
@@ -37,6 +37,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Feedback', to: '/student/feedback', icon: MessageSquare },
         { label: 'Evaluations', to: '/student/evaluations', icon: Award },
+        { label: 'Live Defense', to: '/student/defense', icon: Radio },
         { label: 'Notifications', to: '/student/notifications', icon: Bell },
         { label: 'Profile', to: '/student/profile', icon: UserCircle },
       ],
@@ -58,6 +59,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       title: 'Evaluation',
       items: [
         { label: 'Schedule', to: '/supervisor/schedule', icon: CalendarDays },
+        { label: 'Live Defense', to: '/supervisor/defense', icon: Radio },
         { label: 'Reports', to: '/supervisor/reports', icon: BarChart3 },
         { label: 'Profile', to: '/supervisor/profile', icon: UserCircle },
       ],
@@ -81,6 +83,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       title: 'Evaluation',
       items: [
         { label: 'Evaluations', to: '/admin/evaluations', icon: Award },
+        { label: 'Live Defense', to: '/admin/defense', icon: Radio },
         { label: 'Reports', to: '/admin/reports', icon: BarChart3 },
       ],
     },
