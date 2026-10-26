@@ -135,10 +135,22 @@ export function DashboardLayout({ role }: { role: Role }) {
         event.preventDefault()
         setPaletteOpen((open) => !open)
       }
+      if (event.key === 'Escape') {
+        setNotifOpen(false)
+        setUserMenu(false)
+        setMobileOpen(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  // Close any open popover when navigating to another page.
+  useEffect(() => {
+    setNotifOpen(false)
+    setUserMenu(false)
+    setMobileOpen(false)
+  }, [location.pathname])
 
   const { data } = useQuery({
     queryKey: ['notifications'],
@@ -257,7 +269,7 @@ export function DashboardLayout({ role }: { role: Role }) {
       )}
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 border-b border-navy-200/70 bg-white/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-navy-200/70 bg-white/80 backdrop-blur-xl">
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
             <button
               onClick={() => setMobileOpen(true)}

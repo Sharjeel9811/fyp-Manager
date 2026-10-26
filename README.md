@@ -22,6 +22,7 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 - [Live Defense Mode](#live-defense-mode)
 - [Similarity Check, GitHub Feed & Mock Defense](#similarity-check-github-feed--mock-defense)
 - [Kanban Board, Theme Switcher & Profile Pictures](#kanban-board-theme-switcher--profile-pictures)
+- [GitHub Publish, First-Run Onboarding & UX Fixes](#github-publish-first-run-onboarding--ux-fixes)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Authentication & Security](#authentication--security)
@@ -313,6 +314,22 @@ A per-project shared board on `/student/kanban` with four columns — **To do / 
 - The server stores `{mime, data, uploadedAt}` on the **User document** (the serverless file system is ephemeral) and exposes it as a `data:` URI on `/auth/login` and `/auth/me`, so header/sidebar avatars render without an `<img>` auth header.
 - `DELETE /api/v1/auth/avatar` removes it; non-images and oversized payloads are rejected server-side too.
 
+## GitHub Publish, First-Run Onboarding & UX Fixes
+
+### Publish project docs to GitHub (student workspace -> project page)
+
+A team can go from zero to a documented repository in one dialog — no git binary, no OAuth app:
+
+- **Empty state** (`GitHubFeed`): link an existing repo, or **"Create repo & publish docs"** — a modal takes a GitHub PAT (paste-only; the backend forwards it once and never stores it), a suggested repo name derived from the project title (`GET /github/projects/:projectId/publish/presets`), and a visibility choice.
+- `POST /github/projects/:projectId/publish` authenticates the token with `GET /user`, creates the repository under the token's account (`/user/repos`, with automatic fallback name candidates), links it to the project so the contribution feed lights up immediately, and pushes `README.md` + `docs/proposal.md` through the Contents API.
+- The README carries the title, abstract, team roster (names + student IDs), supervisor, and milestone table; `docs/proposal.md` carries the latest submitted proposal (abstract, problem, objectives, methodology).
+- **Re-publish** updates an already-linked repo (PUT with SHA lookup) with the latest project documents; students get friendly errors for revoked tokens (401), missing `repo` scope (403), or name collisions. Supervisors are told to ask a team member; project access is re-checked in the service on every call.
+
+Related UI fixes in the same pass:
+
+- **Nav dropdowns close on outside click** (the fixed backdrop overlays pointer events again — the header stacking context was raised), on `Escape`, and when navigating.
+- **First-run students land on onboarding, not error cards**: dashboard and team page detect "no project yet" and offer a project registration form (`POST /student/project/register` — the student becomes Team Lead; department and active session attach automatically), after which the familiar invite/mentor/proposal flows take over.
+
 ## Tech Stack
 
 ### Frontend
@@ -545,6 +562,8 @@ erDiagram
 | GET | `/feedback` | Get feedback | Student |
 | POST | `/comments` | Add comment | Student |
 | GET | `/evaluations` | Get evaluations & defense | Student |
+| GET | `/project` | Get project workspace | Student |
+| POST | `/project/register` | First-run project registration (student becomes Team Lead) | Student |
 | PUT | `/project/repo` | Link the team's public GitHub repository (enables the contribution feed) | Student |
 
 ### Supervisor Routes (`/api/v1/supervisor`)
@@ -609,6 +628,8 @@ Access is re-checked per request against project membership / assigned superviso
 | Method | Endpoint | Description | Who |
 |--------|----------|-------------|-----|
 | GET | `/projects/:projectId` | Repo metadata + last 10 commits + contributors (5-minute server cache behind api.github.com) | Team member, assigned supervisor, admin |
+| GET | `/projects/:projectId/publish/presets` | Suggested repository name + already-linked repo | Team member, admin (supervisor: 403 → ask the team) |
+| POST | `/projects/:projectId/publish` | Create the repo under the caller's PAT account and push README + proposal docs; re-publish updates the linked repo | Team member, admin |
 
 ### Mock Defense Routes (`/api/v1/mockdefense`)
 See [Mock Defense](#mock-defense-student-practice) for the full flow and provider fallback chain.

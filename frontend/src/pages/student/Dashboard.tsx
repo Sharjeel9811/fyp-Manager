@@ -2,9 +2,10 @@ import { Link } from 'react-router-dom'
 import {
   FolderKanban, TrendingUp, Clock, ListChecks, ArrowRight, UploadCloud,
   CalendarDays, Activity, CheckCircle2, AlertTriangle, FileText, Target, Sparkles,
+  Users,
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
-import { PageHeader, StatCard, StatusPill, SectionHeader, ErrorState, SkeletonPage } from '@/components/shared/Common'
+import { PageHeader, StatCard, StatusPill, SectionHeader, ErrorState, SkeletonPage, EmptyState } from '@/components/shared/Common'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Progress } from '@/components/ui/Feedback'
@@ -32,7 +33,33 @@ export default function StudentDashboard() {
   const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'overview'], '/student/overview', { refetchInterval: 30_000 })
 
   if (isLoading) return <SkeletonPage />
-  if (error) return <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
+  if (error) {
+    const message = (error as Error).message || ''
+    // A brand-new student has no team/project yet — onboarding, not an error.
+    if (/no project found/i.test(message)) {
+      return (
+        <div>
+          <PageHeader
+            eyebrow="Student Workspace"
+            title={`Welcome, ${user?.firstName ?? 'Student'}!`}
+            description="Let's set up your final year project workspace in a few steps."
+          />
+          <Card className="p-8">
+            <EmptyState
+              icon={Users}
+              title="Create or join your project team"
+              description="Start by forming your team and registering a project. Your supervisor, proposals, milestones, and submissions all live inside it."
+            />
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link to="/student/team"><Button>Create / join team <ArrowRight className="h-4 w-4" /></Button></Link>
+              <Link to="/student/profile"><Button variant="outline">Complete your profile</Button></Link>
+            </div>
+          </Card>
+        </div>
+      )
+    }
+    return <ErrorState message={message} onRetry={() => refetch()} />
+  }
   if (!data) return null
 
   const { projectView, stats, milestones, submissions, feedback, health, progressTrend, readiness } = data

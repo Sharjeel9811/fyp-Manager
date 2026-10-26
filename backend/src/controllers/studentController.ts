@@ -314,6 +314,49 @@ export const getProject = asyncHandler(async (req: AuthRequest, res: Response) =
   })
 })
 
+/**
+ * First-run project registration: a student with no team/project yet creates
+ * one and becomes its Team Lead. Later members join through the team invite
+ * endpoint, and the proposal flow proceeds as for any other project.
+ */
+export const registerProject = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const ctx = await getStudentContext(req.user!.id)
+  if (!ctx) return res.status(404).json({ success: false, message: 'Student profile not found' })
+  if (ctx.project) {
+    return res.status(400).json({ success: false, message: 'You already belong to a project — leave it from your project page first if you want to start another' })
+  }
+
+  const title = String(req.body?.title || '').trim()
+  const abstract = String(req.body?.abstract || '').trim()
+  if (title.length < 4 || title.length > 160) {
+    return res.status(400).json({ success: false, message: 'Give the project a title between 4 and 160 characters' })
+  }
+  if (abstract.length > 900) {
+    return res.status(400).json({ success: false, message: 'Keep the abstract under 900 characters' })
+  }
+
+  const activeSession: any = await AcademicSession.findOne({ isActive: true }).lean()
+  const project = await Project.create({
+    title,
+    abstract: abstract || undefined,
+    status: 'PROPOSAL_DRAFT',
+    departmentId: ctx.student.departmentId || undefined,
+    academicSessionId: activeSession?._id || undefined,
+    startedAt: new Date(),
+  })
+  await ProjectMember.create({ projectId: project._id, studentId: ctx.student._id, role: 'LEAD' })
+
+  await writeAudit({ userId: req.user!.id, projectId: String(project._id), action: 'Registered project', entityType: 'Project', entityId: String(project._id), details: { title } })
+  await broadcastActivity({
+    type: 'project',
+    message: `${req.user!.firstName} ${req.user!.lastName} registered a new project "${title}"`,
+    meta: { projectId: String(project._id) },
+    byUserId: req.user!.id,
+  })
+
+  res.status(201).json({ success: true, message: `Project "${title}" registered — you are the Team Lead` })
+})
+
 /** The team links (or re-points) the public GitHub repository it develops in. */
 export const updateRepo = asyncHandler(async (req: AuthRequest, res: Response) => {
   const ctx = await getStudentContext(req.user!.id)

@@ -253,8 +253,63 @@ export function StudentTeam() {
   const invite = useApiMutation((payload: { email: string }) => api.post('/student/team/invite', payload), [['student', 'team'], ['student', 'overview'], ['student', 'project']])
   const remove = useApiMutation((id: string) => api.delete(`/student/team/${id}`), [['student', 'team'], ['student', 'overview'], ['student', 'project']])
 
+  // --- First-run: students with no project yet register one here. ---
+  const [projTitle, setProjTitle] = useState('')
+  const [projAbstract, setProjAbstract] = useState('')
+  const [registerErr, setRegisterErr] = useState('')
+  const register = useApiMutation(
+    (payload: { title: string; abstract: string }) => api.post('/student/project/register', payload),
+    [['student', 'team'], ['student', 'overview'], ['student', 'project']]
+  )
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setRegisterErr('')
+    try {
+      const res: any = await register.mutateAsync({ title: projTitle, abstract: projAbstract })
+      setMessage(res.data?.message || '')
+    } catch (err: any) {
+      setRegisterErr(err.message || 'Could not register the project')
+    }
+  }
+  // -------------------------------------------------------------------
+
   if (isLoading) return <SkeletonPage />
-  if (error) return <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
+  if (error) {
+    const message = (error as Error).message || ''
+    if (/no project found/i.test(message)) {
+      return (
+        <div>
+          <PageHeader eyebrow="Team" title="Start your project" description="Register your final-year project to create your team. You will be the Team Lead and can invite up to 3 more members afterwards." />
+          <div className="grid gap-5 lg:grid-cols-3">
+            <Card className="p-6 lg:col-span-2">
+              <form className="space-y-4" onSubmit={handleRegister}>
+                <Input label="Project title" value={projTitle} onChange={(e) => setProjTitle(e.target.value)} placeholder="e.g. AI-powered chatbot for the university help desk" required />
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-navy-700">Short abstract (optional)</span>
+                  <textarea
+                    value={projAbstract}
+                    onChange={(e) => setProjAbstract(e.target.value)}
+                    maxLength={900}
+                    rows={4}
+                    placeholder="One or two sentences describing what the project will do."
+                    className="w-full rounded-xl border border-navy-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 shadow-sm placeholder:text-navy-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10"
+                  />
+                </label>
+                <Button type="submit" loading={register.isPending}><Plus className="h-4 w-4" /> Register project</Button>
+                {registerErr && <p className="text-sm font-medium text-red-600">{registerErr}</p>}
+              </form>
+            </Card>
+            <Card className="h-fit p-5">
+              <SectionHeader title="How teams work" description="After registering, invite teammates by email from this page. Teams are limited to 4 members by university policy." />
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-navy-400"><Lock className="h-3.5 w-3.5" /> Your department and the active session are attached automatically.</p>
+            </Card>
+          </div>
+        </div>
+      )
+    }
+    return <ErrorState message={message} onRetry={() => refetch()} />
+  }
 
   const team: any[] = data?.team ?? []
   const maxSize = data?.maxSize ?? 4

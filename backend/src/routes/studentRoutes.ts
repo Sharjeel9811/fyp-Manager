@@ -7,6 +7,7 @@ router.use(authenticate, authorize('STUDENT'))
 
 router.get('/overview', student.getOverview)
 router.get('/project', student.getProject)
+router.post('/project/register', student.registerProject)
 router.put('/project/repo', student.updateRepo)
 router.get('/proposal', student.getProposal)
 router.put('/proposal', student.saveProposal)

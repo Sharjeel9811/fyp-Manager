@@ -868,7 +868,7 @@ export function AdminSimilarity() {
       <PageHeader
         eyebrow="Integrity"
         title="Proposal similarity"
-        description="TF-IDF + cosine comparison across every proposal in the session, computed on demand with no external service."
+        description="Compares every proposal in the session pairwise on demand, with shared terms and teams highlighted for review."
       />
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -926,8 +926,7 @@ export function AdminSimilarity() {
       )}
 
       <p className="mt-4 text-xs text-navy-400">
-        Similarity is a similarity measure, not proof of plagiarism — the flagged list is a lead for conversation. The threshold lives in
-        <code className="mx-1 rounded bg-navy-100 px-1">backend/src/services/similarity.ts</code>.
+        Similarity percentages highlight proposals worth reviewing together — flagged pairs are meant for a supervisor conversation, not an automatic judgment.
       </p>
     </div>
   )

@@ -66,6 +66,14 @@
     @apply border-navy-200;
   }
 
+  /* Flex/grid children default to min-width:auto (content-sized), which blows
+     out their column on narrow screens and breaks the page scroll width.
+     Allowing them to shrink keeps layouts responsive everywhere. */
+  .grid > *,
+  .flex > * {
+    min-width: 0;
+  }
+
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;

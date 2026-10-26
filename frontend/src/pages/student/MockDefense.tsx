@@ -19,7 +19,7 @@ const answerClass =
 
 const providerLabel = (p?: string) =>
   !p || p === 'RULE_BASED'
-    ? 'Rule-based examiner (no LLM key configured)'
+    ? 'Practice examiner'
     : `AI examiner · ${p}`
 
 /**
