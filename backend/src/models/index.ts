@@ -301,6 +301,19 @@ const DeadlineSchema = new Schema(
   opts
 )
 
+const ChatMessageSchema = new Schema(
+  {
+    projectId: { type: ObjectId, ref: 'Project', required: true, index: true },
+    messageId: { type: String, index: true },
+    text: { type: String, required: true },
+    senderId: { type: ObjectId, ref: 'User', required: true },
+    senderName: String,
+    senderRole: String,
+    ts: { type: Number, required: true },
+  },
+  opts
+)
+
 const SettingSchema = new Schema(
   { key: { type: String, required: true, unique: true }, value: Object },
   opts
@@ -334,3 +347,4 @@ export const KanbanCard = mongoose.model('KanbanCard', KanbanCardSchema)
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema)
 export const Deadline = mongoose.model('Deadline', DeadlineSchema)
 export const Setting = mongoose.model('Setting', SettingSchema)
+export const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema)

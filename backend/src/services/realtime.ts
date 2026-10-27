@@ -1,13 +1,30 @@
 import { Server as HttpServer } from 'http'
 import { Server, Socket } from 'socket.io'
 import jwt from 'jsonwebtoken'
+import mongoose from 'mongoose'
 import {
+  ChatMessage,
   User,
   StudentProfile,
   SupervisorProfile,
   ProjectMember,
   SupervisorAssignment,
 } from '../models'
+
+/**
+ * Cold-start tolerance for the handshake. On serverless/Fluid runtimes the
+ * module can be evaluated before `connectDB()` has finished opening, and the
+ * auth middleware's user lookup would fail -> "unauthorized" for a perfectly
+ * valid token. Wait briefly for the connection instead.
+ */
+async function waitForDb(maxMs = 5000): Promise<boolean> {
+  const start = Date.now()
+  while (Number(mongoose.connection.readyState) !== 1) {
+    if (Date.now() - start >= maxMs) return Number(mongoose.connection.readyState) === 1
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  return true
+}
 
 type Role = 'STUDENT' | 'SUPERVISOR' | 'ADMIN'
 
@@ -182,6 +199,8 @@ export function initRealtime(httpServer: HttpServer) {
 
       if (!token) return next(new Error('unauthorized'))
 
+      if (!(await waitForDb())) return next(new Error('service-warming-up'))
+
       const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
         id: string
         role?: string
@@ -279,6 +298,18 @@ export function initRealtime(httpServer: HttpServer) {
         if (history.length > 200) history.shift()
 
         io?.to(`project:${projectId}`).emit('chat:message', message)
+
+        // Durable copy so history, reloading the page, and sockets that sit on
+        // a different serverless instance all see the same conversation.
+        ChatMessage.create({
+          projectId,
+          messageId: message.id,
+          text: message.text,
+          senderId: message.senderId,
+          senderName: socket.displayName,
+          senderRole: role,
+          ts: message.ts,
+        }).catch((err) => console.error('[realtime] chat persist failed:', (err as Error).message))
       } catch (err) {
         console.error('[realtime] chat:send failed:', (err as Error).message)
       }
@@ -287,7 +318,22 @@ export function initRealtime(httpServer: HttpServer) {
     socket.on('chat:history', (roomId: unknown) => {
       const projectId = String(roomId || '')
       if (!isObjectId(projectId) || !inRoom(projectId)) return
-      socket.emit('chat:history', { roomId: projectId, messages: chatRooms.get(projectId) || [] })
+      const local = chatRooms.get(projectId) || []
+      // Serve the durable log when reachable; the in-memory slice is a
+      // per-instance best effort fallback for cold windows.
+      ChatMessage.find({ projectId }).sort({ ts: 1 }).limit(200).lean()
+        .then((rows: any[]) => {
+          const mapped = rows.map((m) => ({
+            id: (m as any).messageId || String(m._id),
+            roomId: projectId,
+            text: m.text,
+            senderId: String(m.senderId),
+            sender: { id: String(m.senderId), name: m.senderName, role: m.senderRole },
+            ts: Number(m.ts),
+          }))
+          socket.emit('chat:history', { roomId: projectId, messages: mapped })
+        })
+        .catch(() => socket.emit('chat:history', { roomId: projectId, messages: local }))
     })
 
     // ---- Typing indicators ----

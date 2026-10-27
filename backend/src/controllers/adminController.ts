@@ -650,3 +650,44 @@ export const getSupervisors = asyncHandler(async (_req: AuthRequest, res: Respon
   }
   res.json({ success: true, supervisors: rows })
 })
+
+/**
+ * Install the standard four-step FYP milestone plan on a project. Skips
+ * titles that already exist so repeated calls never duplicate steps. New
+ * projects get this automatically at registration; this endpoint exists for
+ * projects created before that feature and for re-staging projects.
+ */
+export const installMilestonePlan = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const project = await Project.findById(req.params.id)
+  if (!project) return res.status(404).json({ success: false, message: 'Project not found' })
+
+  const dayMs = 24 * 60 * 60 * 1000
+  const base = Date.now()
+  const plan = [
+    { title: 'Proposal approval', description: 'Proposal drafted, submitted, and signed off by the supervisor.', offset: 14 },
+    { title: 'Mid-term evaluation', description: 'Interim report and progress presentation reviewed around mid-term week.', offset: 56 },
+    { title: 'Final report submission', description: 'Complete project report with all deliverables handed in.', offset: 98 },
+    { title: 'Final defense', description: 'Viva presentation and defense before the panel.', offset: 112 },
+  ]
+  const existing = await Milestone.find({ projectId: project._id }).lean()
+  const haveTitles = new Set(existing.map((m: any) => String(m.title)))
+  let created = 0
+  let order = existing.length
+  for (const step of plan) {
+    if (haveTitles.has(step.title)) continue
+    await Milestone.create({
+      projectId: project._id,
+      title: step.title,
+      description: step.description,
+      startDate: new Date(base + (step.offset - 28) * dayMs),
+      dueDate: new Date(base + step.offset * dayMs),
+      status: 'NOT_STARTED',
+      completionPercentage: 0,
+      deliverableRequirements: 'Submit a PDF report and supporting files.',
+      order: order++,
+    })
+    created++
+  }
+  await writeAudit({ userId: req.user!.id, projectId: String(project._id), action: 'Installed standard milestone plan', entityType: 'Project', entityId: String(project._id) })
+  res.json({ success: true, message: `Milestone plan installed (${created} created, ${plan.length - created} already present)`, created })
+})

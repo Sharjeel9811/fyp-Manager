@@ -346,6 +346,31 @@ export const registerProject = asyncHandler(async (req: AuthRequest, res: Respon
   })
   await ProjectMember.create({ projectId: project._id, studentId: ctx.student._id, role: 'LEAD' })
 
+  // Standard FYP milestone plan so new teams get a working timeline from day
+  // one (milestones cannot be created anywhere else — only progressed).
+  const dayMs = 24 * 60 * 60 * 1000
+  const base = Date.now()
+  const plan = [
+    { title: 'Proposal approval', description: 'Proposal drafted, submitted, and signed off by the supervisor.', offset: 14 },
+    { title: 'Mid-term evaluation', description: 'Interim report and progress presentation reviewed around mid-term week.', offset: 56 },
+    { title: 'Final report submission', description: 'Complete project report with all deliverables handed in.', offset: 98 },
+    { title: 'Final defense', description: 'Viva presentation and defense before the panel.', offset: 112 },
+  ]
+  for (let i = 0; i < plan.length; i++) {
+    const step = plan[i]
+    await Milestone.create({
+      projectId: project._id,
+      title: step.title,
+      description: step.description,
+      startDate: new Date(base + (step.offset - 28) * dayMs),
+      dueDate: new Date(base + step.offset * dayMs),
+      status: 'NOT_STARTED',
+      completionPercentage: 0,
+      deliverableRequirements: 'Submit a PDF report and supporting files.',
+      order: i,
+    })
+  }
+
   await writeAudit({ userId: req.user!.id, projectId: String(project._id), action: 'Registered project', entityType: 'Project', entityId: String(project._id), details: { title } })
   await broadcastActivity({
     type: 'project',

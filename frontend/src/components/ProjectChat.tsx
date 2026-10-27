@@ -5,6 +5,7 @@ import { useRealtime } from '@/context/RealtimeContext'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
+import api from '@/lib/api'
 
 interface ChatMsg {
   id: string
@@ -23,17 +24,43 @@ export function ProjectChat({ roomId, title = 'Project Live Chat' }: { roomId: s
   const [typing, setTyping] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
   const typingTimeout = useRef<number | null>(null)
+  const cleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (!roomId || !socket) return
     joinRoom(roomId)
     getChatHistory(roomId)
 
+    // Durable history via REST hydrates and refreshes — this guarantees the
+    // panel survives reloads and sockets that sit on another serverless
+    // instance. The socket keeps delivery instant on top of it.
+    let cancelled = false
+    const seen = new Set<string>()
+    const merge = (msgs: ChatMsg[]) => {
+      setMessages((prev) => {
+        prev.forEach((m) => seen.add(m.id))
+        const fresh = msgs.filter((m) => !seen.has(m.id) && m.roomId === roomId)
+        fresh.forEach((m) => seen.add(m.id))
+        return [...prev, ...fresh].slice(-200).sort((a, b) => a.ts - b.ts)
+      })
+    }
+    if (roomId) {
+      api.get(`/realtime/chat/${roomId}`).then((r: any) => { if (!cancelled) merge(r.data?.messages || []) }).catch(() => {})
+      const poll = window.setInterval(() => {
+        api.get(`/realtime/chat/${roomId}`).then((r: any) => merge(r.data?.messages || [])).catch(() => {})
+      }, 5000)
+      cleanupRef.current = () => window.clearInterval(poll)
+    }
+
     const onMsg = (msg: ChatMsg) => {
-      if (msg.roomId === roomId) setMessages((prev) => [...prev, msg].slice(-150))
+      if (msg.roomId === roomId) merge([msg])
     }
     const onHistory = (payload: any) => {
-      if (payload.roomId === roomId) setMessages(payload.messages || [])
+      if (payload.roomId !== roomId) return
+      const msgs: ChatMsg[] = payload.messages || []
+      seen.clear()
+      msgs.forEach((m) => seen.add(m.id))
+      setMessages(msgs)
     }
     const onTyping = (payload: any) => {
       if (payload.roomId === roomId) setTyping(payload.users || [])
@@ -44,6 +71,8 @@ export function ProjectChat({ roomId, title = 'Project Live Chat' }: { roomId: s
     socket.on('typing:update', onTyping)
 
     return () => {
+      cancelled = true
+      cleanupRef.current?.()
       socket.off('chat:message', onMsg)
       socket.off('chat:history', onHistory)
       socket.off('typing:update', onTyping)
