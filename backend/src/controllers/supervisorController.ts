@@ -185,6 +185,9 @@ async function notifyStudent(projectId: string, title: string, message: string, 
     const profile: any = await StudentProfile.findById(m.studentId).lean()
     if (profile) {
       await Notification.create({ userId: profile.userId, title, message, type: 'review', link })
+      // Push the bell over Socket.IO too; the notification drawer otherwise
+      // only refreshes on its 15s poll.
+      emitToUser(String(profile.userId), 'notification:new', { title, type: 'review' })
     }
   }
 }

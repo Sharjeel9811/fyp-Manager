@@ -27,6 +27,11 @@ const app = express()
 const PORT = Number(process.env.PORT || 5000)
 const server = http.createServer(app)
 
+// Attach Socket.IO at module load (not inside start()): on Vercel's Fluid
+// runtime the function must export the full http.Server so upgrade requests
+// for `/socket.io` reach the engine. Local dev needs it wired before listen.
+initRealtime(server)
+
 // Behind Vercel's proxy the client IP arrives in X-Forwarded-For.
 app.set('trust proxy', 1)
 
@@ -73,15 +78,24 @@ app.use(errorHandler)
 async function start() {
   try {
     await connectDB()
-    initRealtime(server)
-    server.listen(PORT, () => console.log(`FYP Manager API running on http://localhost:${PORT}`))
+    if (!process.env.VERCEL) {
+      // Only a real Node host (local dev / Render) opens a listening socket.
+      // On Vercel the function never listens: Fluid compute invokes the
+      // exported server per request, and module code can be evaluated more
+      // than once per sandbox, where a second .listen() would crash it.
+      server.listen(PORT, () => console.log(`FYP Manager API running on http://localhost:${PORT}`))
+    }
   } catch (err: any) {
     console.error('Failed to start server:', err.message)
-    process.exit(1)
+    if (!process.env.VERCEL) process.exit(1)
   }
 }
 
 start()
 
-export default app
+// Vercel Functions (Fluid compute) take the whole Node http.Server: REST is
+// served through the express request listener and WebSocket upgrades reach
+// the Socket.IO engine attached above. Locally the same server object is
+// listening on PORT via start().
+export default server
 

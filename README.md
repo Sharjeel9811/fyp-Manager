@@ -13,7 +13,7 @@ A comprehensive, real-time enabled Final Year Project Management System designed
 
 **Demo accounts** (password `password123` for all): `student@fypmanager.com`, `supervisor@fypmanager.com`, `admin@fypmanager.com`
 
-> **Why the backend has two targets:** Vercel serverless functions are request-scoped, so they can serve the REST API but cannot hold a Socket.IO connection open and cannot share in-memory presence between instances. The frontend therefore lives on Vercel, while the same Express app is also deployed as a long-running Node service (see [Real-Time Deployment](#real-time-deployment-render)). Until that service is created, every dashboard keeps polling its REST data (15s interval + refetch on tab focus) and the Live Activity panel shows the real connection state instead of pretending to be live.
+> **Real-time on production:** the Socket.IO server runs **on the same Vercel backend** described above — Vercel Functions (Fluid compute) now serve WebSocket upgrades natively, and `src/index.ts` exports the full `http.Server` so `/socket.io` reaches the engine. REST keeps working through the express request listener. Dashboards poll their REST data (10–15s) as a guaranteed fallback, and the Live Activity panel shows the real connection state. **Optional:** `render.yaml` still describes a long-running Node host (Render) that guarantees one persistent instance for presence/chat at scale; see [Real-Time Deployment](#real-time-deployment-render).
 
 ## Table of Contents
 - [Overview](#overview)
@@ -802,7 +802,9 @@ npm run build
 npm run preview
 ```
 
-## Real-Time Deployment (Render)
+## Real-Time Deployment (Render) *(optional — for always-on single-instance real-time)*
+
+> **Current default:** Sockets already run on Vercel (see the note at the top of this README) via Fluid compute's native WebSocket support. Use this Render setup only if you want a single persistent Node process (guaranteed presence/chat state without cross-instance gaps) — e.g. before a demo with many concurrent users.
 
 `render.yaml` in the repo root is a Render Blueprint for the API service. The frontend stays on Vercel.
 
