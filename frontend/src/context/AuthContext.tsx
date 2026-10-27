@@ -49,15 +49,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
       return
     }
-    try {
-      const { data } = await api.get('/auth/me')
-      setUser(data.user)
-    } catch {
-      tokenStore.clear()
-      setUser(null)
-    } finally {
-      setLoading(false)
+    // Only a genuine session-expiry 401 logs the user out. Server warm-up
+    // (503) or network flashes must not wipe the stored session — retry once
+    // and keep the user signed in.
+    const expiryRe = /expired|invalid|inactive|token.*invalid|authentication required/i
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const { data } = await api.get('/auth/me')
+        setUser(data.user)
+        break
+      } catch (err: any) {
+        const status = Number(err?.response?.status) || 0
+        const msg = String(err?.message || '')
+        // Session-expiry (401 + expiry wording) is the only fatal case.
+        const isFatal = status === 401 && expiryRe.test(msg)
+        if (!isFatal && attempt === 0) {
+          await new Promise((r) => setTimeout(r, 1500))
+          continue
+        }
+        if (isFatal) {
+          tokenStore.clear()
+          setUser(null)
+        }
+        break
+      }
     }
+    setLoading(false)
   }, [])
 
   useEffect(() => {
