@@ -28,8 +28,8 @@ const statusVariant = (status: string): 'neutral' | 'brand' | 'success' | 'warni
 }
 
 export function StudentProject() {
-  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'project'], '/student/project')
-  const submissionsQ = useApiQuery<any>(['student', 'submissions'], '/student/submissions')
+  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'project'], '/student/project', { refetchInterval: 15_000 })
+  const submissionsQ = useApiQuery<any>(['student', 'submissions'], '/student/submissions', { refetchInterval: 15_000 })
 
   if (isLoading) return <SkeletonPage />
   if (error) return <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
@@ -138,7 +138,7 @@ export function StudentProject() {
 }
 
 export function StudentProposal() {
-  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'proposal'], '/student/proposal')
+  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'proposal'], '/student/proposal', { refetchInterval: 15_000 })
   const [message, setMessage] = useState('')
   const proposal = data?.proposal
   const versions: any[] = data?.versions ?? []
@@ -437,7 +437,7 @@ export function StudentMilestones() {
 }
 
 export function StudentSubmissions() {
-  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'submissions'], '/student/submissions')
+  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'submissions'], '/student/submissions', { refetchInterval: 15_000 })
   const [message, setMessage] = useState('')
   const create = useApiMutation(
     (payload: { title: string; type: string; description: string }) => api.post('/student/submissions', payload),
@@ -528,7 +528,7 @@ export function StudentSubmissions() {
 }
 
 export function StudentFeedback() {
-  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'feedback'], '/student/feedback')
+  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'feedback'], '/student/feedback', { refetchInterval: 15_000 })
   const [replies, setReplies] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const reply = useApiMutation(({ id, content }: { id: string; content: string }) => api.post(`/student/feedback/${id}/reply`, { content }), [['student', 'feedback']])
@@ -589,7 +589,7 @@ export function StudentFeedback() {
 }
 
 export function StudentEvaluations() {
-  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'evaluations'], '/student/evaluations')
+  const { data, isLoading, error, refetch } = useApiQuery<any>(['student', 'evaluations'], '/student/evaluations', { refetchInterval: 30_000 })
 
   if (isLoading) return <SkeletonPage />
   if (error) return <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
