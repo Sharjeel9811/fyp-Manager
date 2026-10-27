@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Only a genuine session-expiry 401 logs the user out. Server warm-up
     // (503) or network flashes must not wipe the stored session — retry once
     // and keep the user signed in.
-    const expiryRe = /expired|invalid|inactive|token.*invalid|authentication required/i
+    const expiryRe = /expired|invalid token|inactive|authentication required/i
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const { data } = await api.get('/auth/me')

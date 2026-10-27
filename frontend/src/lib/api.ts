@@ -27,18 +27,21 @@ api.interceptors.response.use(
 
     // Only a genuine session-expiry 401 should wipe the stored token. A 401
     // thrown while the API is cold-starting must not log users out.
-    const expiryRe = /expired|invalid|inactive|token.*invalid|authentication required/i
+    const expiryRe = /expired|invalid token|inactive|authentication required/i
+    const warmUpRe = /warming up/i
     const isSessionExpiry =
       status === 401 && !String(error?.config?.url || '').includes('/auth/login') && expiryRe.test(message)
 
-    if (status === 401 && !isSessionExpiry) {
-      // Cold-start race or token-transient failure — surface a retryable
-      // error instead of killing the session.
-      return Promise.reject(Object.assign(new Error('Service is warming up, retry in a moment'), { retryable: true }))
-    }
     if (isSessionExpiry) {
       tokenStore.clear()
+      return Promise.reject(new Error(message))
     }
+    // Backend says it's warming: surface a clearly retryable error.
+    if (status === 503 || warmUpRe.test(message)) {
+      return Promise.reject(Object.assign(new Error('Service is warming up, retry in a moment'), { retryable: true }))
+    }
+    // Everything else (e.g. a 401 from a third-party call) keeps its real
+    // message — only the token is left intact.
     return Promise.reject(new Error(message))
   }
 )
