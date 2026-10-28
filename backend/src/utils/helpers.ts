@@ -87,3 +87,16 @@ export function paginate<T>(items: T[], page = 1, limit = 50): T[] {
   const p = Math.max(1, page)
   return items.slice((p - 1) * limit, p * limit)
 }
+
+/**
+ * Password policy shared by registration, admin user creation, password
+ * change, and reset. Existing accounts keep working; only NEW passwords are
+ * held to this bar (current demo passwords contain letters and digits).
+ */
+export function passwordProblem(pw: unknown): string | null {
+  const s = String(pw || '')
+  if (s.length < 8) return 'Password must be at least 8 characters'
+  if (!/[A-Za-z]/.test(s) || !/[0-9]/.test(s)) return 'Password must contain both letters and numbers'
+  return null
+}
+

@@ -19,7 +19,7 @@ import AdminDashboard from '@/pages/admin/Dashboard'
 import {
   AdminUsers, AdminDepartments, AdminSessions, AdminProjects, AdminProposals,
   AdminAssignments, AdminDeadlines, AdminEvaluations, AdminReports, AdminAuditLogs, AdminSettings,
-  AdminSimilarity,
+  AdminSimilarity, AdminMail,
 } from '@/pages/admin/AdminPages'
 import { ProfilePage, NotificationsPage } from '@/pages/shared/ProfilePages'
 import { StudentLiveDefense, SupervisorLiveDefense, AdminLiveDefense } from '@/pages/defense/DefensePages'
@@ -95,6 +95,7 @@ function App() {
         <Route path="defense" element={<AdminLiveDefense />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="audit-logs" element={<AdminAuditLogs />} />
+        <Route path="mail" element={<AdminMail />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage role="ADMIN" />} />

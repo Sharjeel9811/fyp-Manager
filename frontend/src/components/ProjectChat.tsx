@@ -109,7 +109,7 @@ export function ProjectChat({ roomId, title = 'Project Live Chat' }: { roomId: s
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><MessageSquare className="h-4 w-4" /></span>
           <div>
             <p className="text-sm font-semibold text-navy-900">{title}</p>
-            <p className="text-[11px] text-navy-400">{connected ? 'Live • Encrypted channel' : 'Reconnecting...'}</p>
+            <p className="text-[11px] text-navy-400">{connected ? 'Live • history persisted' : 'Reconnecting...'}</p>
           </div>
         </div>
         <span className="flex items-center gap-1 rounded-full bg-navy-50 px-2 py-1 text-[11px] text-navy-500"><Users className="h-3 w-3" /> Real-time</span>

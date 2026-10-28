@@ -702,6 +702,57 @@ export function AdminReports() {
   )
 }
 
+/**
+ * System mail outbox. With no SMTP provider configured, password-reset links
+ * and other system mail are queued here with copyable links so the FYP office
+ * can relay them to recipients.
+ */
+export function AdminMail() {
+  const { data, isLoading, error, refetch } = useApiQuery<any>(['admin', 'mail'], '/admin/mail', { refetchInterval: 30_000 })
+  const consume = useApiMutation((id: string) => api.post(`/admin/mail/${id}/consumed`), [['admin', 'mail']])
+  if (isLoading) return <SkeletonPage />
+  if (error) return <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
+  const rows: any[] = data?.mail ?? []
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="System"
+        title="Mail outbox"
+        description="System mail queued for delivery. With no SMTP provider, copy a link here and send it to the recipient yourself."
+        actions={<Button size="sm" variant="outline" onClick={() => refetch()}>Refresh</Button>}
+      />
+      <div className="space-y-3">
+        {rows.length === 0 && <EmptyState title="Outbox empty" description="Password-reset requests will appear here." />}
+        {rows.map((m) => (
+          <Card key={m.id} className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-navy-900">{m.subject}</p>
+                <p className="text-xs text-navy-400">To {m.to} · {fmtDateTime(m.queuedAt)} {m.consumed && '· delivered'}</p>
+                {m.body && <p className="mt-1.5 whitespace-pre-line text-sm text-navy-600">{m.body}</p>}
+                {m.links.map((l: string) => (
+                  <p key={l} className="mt-1.5 break-all font-mono text-xs text-brand-600">{l}</p>
+                ))}
+              </div>
+              <div className="flex shrink-0 gap-2">
+                {m.links[0] && (
+                  <Button size="sm" variant="outline" onClick={() => navigator.clipboard?.writeText(m.links[0])}>
+                    <Copy className="h-3.5 w-3.5" /> Copy link
+                  </Button>
+                )}
+                {!m.consumed && m.links[0] && (
+                  <Button size="sm" loading={consume.isPending} onClick={() => consume.mutateAsync(m.id)}>Mark delivered</Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function AdminAuditLogs() {
   const { data, isLoading, error, refetch } = useApiQuery<any>(['admin', 'audit-logs'], '/admin/audit-logs')
   if (isLoading) return <SkeletonPage />

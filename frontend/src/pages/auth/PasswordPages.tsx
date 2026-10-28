@@ -94,7 +94,7 @@ export function ResetPassword() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
-          <Input label="New password" type="password" name="password" placeholder="At least 6 characters" icon={<Lock className="h-4 w-4" />} required minLength={6} />
+          <Input label="New password" type="password" name="password" placeholder="At least 8 characters with letters and numbers" icon={<Lock className="h-4 w-4" />} required minLength={8} />
           <Input label="Confirm password" type="password" name="confirm" placeholder="Re-enter password" icon={<Lock className="h-4 w-4" />} required minLength={6} />
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
           <Button type="submit" size="lg" className="w-full" loading={loading}>Update password</Button>

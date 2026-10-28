@@ -314,6 +314,24 @@ const ChatMessageSchema = new Schema(
   opts
 )
 
+/**
+ * Outgoing mail queue. With no SMTP provider on the free tier the platform
+ * delivers system mail (password resets, invites) by writing rows here; the
+ * admin Mail page lists them so links can be handed to the recipient. If SMTP
+ * credentials are ever added, a worker drains this collection for real.
+ */
+const MailOutboxSchema = new Schema(
+  {
+    to: { type: String, required: true },
+    subject: { type: String, required: true },
+    body: { type: String, default: '' },
+    links: [{ type: String }],
+    deliveredBy: { type: String, default: 'outbox' },
+    consumedAt: Date,
+  },
+  opts
+)
+
 const SettingSchema = new Schema(
   { key: { type: String, required: true, unique: true }, value: Object },
   opts
@@ -348,3 +366,4 @@ export const AuditLog = mongoose.model('AuditLog', AuditLogSchema)
 export const Deadline = mongoose.model('Deadline', DeadlineSchema)
 export const Setting = mongoose.model('Setting', SettingSchema)
 export const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema)
+export const MailOutbox = mongoose.model('MailOutbox', MailOutboxSchema)

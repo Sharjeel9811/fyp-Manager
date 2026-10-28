@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   FolderKanban, Users, ListChecks, UploadCloud, MessageSquare, FileText,
   Clock, CheckCircle2, AlertTriangle, Plus, Send, Lock, Trash2,
@@ -33,7 +34,22 @@ export function StudentProject() {
   const submissionsQ = useApiQuery<any>(['student', 'submissions'], '/student/submissions', { refetchInterval: 15_000 })
 
   if (isLoading) return <SkeletonPage />
-  if (error) return <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
+  if (error) {
+    const msg = (error as Error).message
+    if (/no project/i.test(msg)) {
+      return (
+        <Card className="p-8 text-center">
+          <p className="text-base font-semibold text-navy-900">No project yet</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-navy-500">
+            Your team hasn't registered a project yet. Head to the Team page to register one — it
+            takes a minute and unlocks proposals, milestones, submissions, and the task board.
+          </p>
+          <div className="mt-4 flex justify-center"><Link to="/student/team"><Button>Start on the Team page</Button></Link></div>
+        </Card>
+      )
+    }
+    return <ErrorState message={msg} onRetry={() => refetch()} />
+  }
   if (!data) return null
 
   const { project, team, health, timeline } = data

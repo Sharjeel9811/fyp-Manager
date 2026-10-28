@@ -229,7 +229,7 @@ export const reviewProposal = asyncHandler(async (req: AuthRequest, res: Respons
     byUserId: req.user!.id,
   })
 
-  res.json({ success: true, message: `Proposal ${statusLabel(status).toLowerCase()}`, status })
+  res.json({ success: true, message: `Proposal ${statusLabel(status).replace(/^Proposal\s+/i, '').toLowerCase()}`, status })
 })
 
 export const reviewSubmission = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -268,7 +268,7 @@ export const reviewSubmission = asyncHandler(async (req: AuthRequest, res: Respo
     byUserId: req.user!.id,
   })
 
-  res.json({ success: true, message: `Submission ${statusLabel(status).toLowerCase()}`, status })
+  res.json({ success: true, message: `Submission ${statusLabel(status).replace(/^Submission\s+/i, '').toLowerCase()}`, status })
 })
 
 export const getMilestones = asyncHandler(async (req: AuthRequest, res: Response) => {

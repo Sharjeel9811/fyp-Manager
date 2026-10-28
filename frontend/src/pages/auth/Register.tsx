@@ -97,7 +97,7 @@ export default function Register() {
           <option>Data Science</option>
           <option>Cybersecurity</option>
         </Select>
-        <Input label="Password" type="password" name="password" placeholder="At least 6 characters" icon={<Lock className="h-4 w-4" />} required minLength={6} />
+        <Input label="Password" type="password" name="password" placeholder="At least 8 characters with letters and numbers" icon={<Lock className="h-4 w-4" />} required minLength={8} />
         <p className="-mt-1 flex items-center gap-1.5 text-xs text-navy-400">
           <Building2 className="h-3.5 w-3.5" /> Use your official university email address.
         </p>

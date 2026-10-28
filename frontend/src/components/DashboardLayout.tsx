@@ -5,7 +5,7 @@ import { AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, FolderKanban, FileText, Users, ListChecks, UploadCloud,
   MessageSquare, Award, Bell, UserCircle, FileSearch, ClipboardCheck, Activity,
-  CalendarDays, BarChart3, Building2, GraduationCap, ShieldCheck, ScrollText,
+  CalendarDays, BarChart3, Building2, GraduationCap, ShieldCheck, ScrollText, Mail,
   Settings, LogOut, Menu, X, ChevronDown, BookOpen, HelpCircle, CheckCheck, Search, Radio,
   Copy, Sun, Moon, Kanban,
 } from 'lucide-react'
@@ -96,6 +96,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       title: 'System',
       items: [
         { label: 'Audit Logs', to: '/admin/audit-logs', icon: ScrollText },
+        { label: 'Mail', to: '/admin/mail', icon: Mail },
         { label: 'Settings', to: '/admin/settings', icon: Settings },
       ],
     },

@@ -2,8 +2,8 @@ import { Response } from 'express'
 import * as argon2 from 'argon2'
 import {
   AcademicSession, AuditLog, Deadline, Department, DefenseSchedule, Evaluation,
-  EvaluationRubric, Feedback, Milestone, Notification, Project, ProjectMember,
-  Proposal, RubricCriterion, Setting, StudentProfile, Submission, SupervisorAssignment,
+  EvaluationRubric, Feedback, MailOutbox, Milestone, Notification, Project, ProjectMember,
+  Proposal, ProposalVersion, RubricCriterion, Setting, StudentProfile, Submission, SupervisorAssignment,
   SupervisorProfile, User,
 } from '../models'
 import { AuthRequest } from '../middleware/auth'
@@ -174,6 +174,11 @@ export const createUser = asyncHandler(async (req: AuthRequest, res: Response) =
   }
   const exists = await User.findOne({ email: String(email).toLowerCase() })
   if (exists) return res.status(400).json({ success: false, message: 'Email already registered' })
+  if (password) {
+    const { passwordProblem } = await import('../utils/helpers')
+    const complexity = passwordProblem(password)
+    if (complexity) return res.status(400).json({ success: false, message: complexity })
+  }
 
   const user: any = await User.create({
     email: String(email).toLowerCase(),
@@ -209,9 +214,53 @@ export const updateUser = asyncHandler(async (req: AuthRequest, res: Response) =
   res.json({ success: true, message: 'User updated' })
 })
 
+export const getUserMail = asyncHandler(async (_req: AuthRequest, res: Response) => {
+  const rows: any[] = await MailOutbox.find().sort({ createdAt: -1 }).limit(100).lean()
+  res.json({
+    success: true,
+    mail: rows.map((m) => ({
+      id: String(m._id),
+      to: m.to,
+      subject: m.subject,
+      body: m.body,
+      links: m.links || [],
+      queuedAt: m.createdAt,
+      consumed: !!m.consumedAt,
+    })),
+  })
+})
+
+/** Mark mail as handed over (the office relayed it to the recipient). */
+export const consumeUserMail = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const mail: any = await MailOutbox.findByIdAndUpdate(req.params.id, { consumedAt: new Date() }, { new: true })
+  if (!mail) return res.status(404).json({ success: false, message: 'Mail not found' })
+  res.json({ success: true, message: 'Marked as delivered' })
+})
+
 export const deleteUser = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const user: any = await User.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true })
+  const user: any = await User.findById(req.params.id)
   if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+
+  // ?purge=true removes the account and its profile rows entirely — which
+  // frees the email and ID for re-registration — but is refused when the
+  // user has any project history; those accounts can only be deactivated.
+  if (String(req.query.purge || '') === 'true') {
+    const memberships = await ProjectMember.countDocuments({ userId: user._id })
+    const assignments = await SupervisorAssignment.countDocuments({ userId: user._id })
+    if (memberships + assignments > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'This user has project history — deactivate instead of purging',
+      })
+    }
+    await StudentProfile.deleteMany({ userId: user._id })
+    await SupervisorProfile.deleteMany({ userId: user._id })
+    await User.deleteOne({ _id: user._id })
+    await writeAudit({ userId: req.user!.id, action: 'Purged user account', entityType: 'User', entityId: String(user._id), details: { title: fullName(user) } })
+    return res.json({ success: true, message: 'User permanently removed' })
+  }
+
+  await User.findByIdAndUpdate(user._id, { isActive: false }, { new: true })
   await writeAudit({ userId: req.user!.id, action: 'Deactivated user account', entityType: 'User', entityId: String(user._id), details: { title: fullName(user) } })
   res.json({ success: true, message: 'User deactivated' })
 })

@@ -60,15 +60,16 @@ export const register = asyncHandler(async (req, res) => {
   if (!['STUDENT', 'SUPERVISOR'].includes(role)) {
     return res.status(400).json({ success: false, message: 'Invalid role' })
   }
-  if (String(password).length < 6) {
-    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' })
+  const { passwordProblem } = await import('../utils/helpers')
+  const complexity = passwordProblem(password)
+  if (complexity) {
+    return res.status(400).json({ success: false, message: complexity })
   }
 
   const existing = await User.findOne({ email: String(email).toLowerCase() })
   if (existing) {
     return res.status(400).json({ success: false, message: 'Email already registered' })
   }
-
   let deptId = departmentId
   if (!deptId && departmentName) {
     const dept: any = await Department.findOne({ name: departmentName })
@@ -232,9 +233,9 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res) => {
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ success: false, message: 'Current and new password are required' })
   }
-  if (String(newPassword).length < 6) {
-    return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' })
-  }
+  const { passwordProblem } = await import('../utils/helpers')
+  const complexity = passwordProblem(newPassword)
+  if (complexity) return res.status(400).json({ success: false, message: complexity })
 
   const user: any = await User.findById(req.user!.id)
   if (!user) return res.status(404).json({ success: false, message: 'User not found' })
@@ -273,9 +274,22 @@ export const verifyEmail = asyncHandler(async (req, res) => {
 export const forgotPassword = asyncHandler(async (req, res) => {
   const user: any = await User.findOne({ email: String(req.body.email || '').toLowerCase() })
   if (user) {
-    user.passwordResetToken = uuidv4()
+    const token = uuidv4()
+    user.passwordResetToken = token
     user.passwordResetExpires = new Date(Date.now() + 3600000)
     await user.save()
+
+    // No SMTP on the free tier: deliver the reset link through the admin
+    // outbox so the FYP office can relay it to the user.
+    const { queueMail } = await import('../services/mailer')
+    const frontend = process.env.FRONTEND_URL || 'https://fypmanager.vercel.app'
+    const link = `${frontend}/reset-password?token=${token}`
+    await queueMail({
+      to: user.email,
+      subject: 'Reset your FYP Manager password',
+      body: `Hello ${user.firstName},\n\nUse the link below within one hour to set a new password.\n\nIf you did not request this, you can ignore this message.`,
+      links: [link],
+    })
   }
   res.json({ success: true, message: 'If the email exists, a reset link has been sent' })
 })
@@ -285,6 +299,9 @@ export const resetPassword = asyncHandler(async (req, res) => {
   if (!token || !password) {
     return res.status(400).json({ success: false, message: 'Token and password are required' })
   }
+  const { passwordProblem } = await import('../utils/helpers')
+  const complexity = passwordProblem(password)
+  if (complexity) return res.status(400).json({ success: false, message: complexity })
   const user: any = await User.findOne({ passwordResetToken: token, passwordResetExpires: { $gt: new Date() } })
   if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired token' })
 
