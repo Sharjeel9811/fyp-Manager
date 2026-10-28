@@ -80,28 +80,43 @@ export const register = asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await argon2.hash(password)
-  const user: any = await User.create({
-    email: String(email).toLowerCase(),
-    passwordHash,
-    firstName,
-    lastName,
-    role,
-    emailVerified: true,
-    emailVerifyToken: uuidv4(),
-  })
+  let user: any
+  try {
+    user = await User.create({
+      email: String(email).toLowerCase(),
+      passwordHash,
+      firstName,
+      lastName,
+      role,
+      emailVerified: true,
+      emailVerifyToken: uuidv4(),
+    })
 
-  if (role === 'STUDENT') {
-    await StudentProfile.create({
-      userId: user._id,
-      studentId: studentId || `STU-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      departmentId: deptId,
-    })
-  } else {
-    await SupervisorProfile.create({
-      userId: user._id,
-      employeeId: employeeId || `SUP-${Math.floor(1000 + Math.random() * 9000)}`,
-      departmentId: deptId,
-    })
+    if (role === 'STUDENT') {
+      const sid = studentId || `STU-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
+      // Duplicate student IDs leave an unusable orphaned user behind, so the
+      // uniqueness check happens before the profile row is ever created.
+      await StudentProfile.create({
+        userId: user._id,
+        studentId: sid,
+        departmentId: deptId,
+      })
+    } else {
+      await SupervisorProfile.create({
+        userId: user._id,
+        employeeId: employeeId || `SUP-${Math.floor(1000 + Math.random() * 9000)}`,
+        departmentId: deptId,
+      })
+    }
+  } catch (err: any) {
+    // Roll the bare user back so the email isn't locked out forever; surface
+    // a friendly message for duplicate IDs.
+    if (user?._id) await User.deleteOne({ _id: user._id }).catch(() => {})
+    const dup = err && String(err.code) === '11000'
+    if (dup) {
+      return res.status(400).json({ success: false, message: 'That ID is already taken — check your student/staff ID and try again' })
+    }
+    throw err
   }
 
   const token = signToken(user)
