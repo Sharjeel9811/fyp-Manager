@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Users, GraduationCap, FolderKanban, ShieldCheck,
+  Users, GraduationCap, FolderKanban, ShieldCheck, Mail,
   Award, Download, Plus, CheckCircle2, AlertTriangle, TrendingUp, UserPlus, Save, X, Sparkles,
   Copy,
 } from 'lucide-react'
@@ -723,7 +723,7 @@ export function AdminMail() {
         actions={<Button size="sm" variant="outline" onClick={() => refetch()}>Refresh</Button>}
       />
       <div className="space-y-3">
-        {rows.length === 0 && <EmptyState title="Outbox empty" description="Password-reset requests will appear here." />}
+        {rows.length === 0 && <EmptyState icon={Mail} title="Outbox empty" description="Password-reset requests will appear here." />}
         {rows.map((m) => (
           <Card key={m.id} className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
