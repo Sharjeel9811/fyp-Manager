@@ -245,8 +245,8 @@ export const deleteUser = asyncHandler(async (req: AuthRequest, res: Response) =
   // frees the email and ID for re-registration — but is refused when the
   // user has any project history; those accounts can only be deactivated.
   if (String(req.query.purge || '') === 'true') {
-    const memberships = await ProjectMember.countDocuments({ userId: user._id })
-    const assignments = await SupervisorAssignment.countDocuments({ userId: user._id })
+    const memberships = await ProjectMember.countDocuments({ studentId: user._id })
+    const assignments = await SupervisorAssignment.countDocuments({ supervisorId: user._id })
     if (memberships + assignments > 0) {
       return res.status(409).json({
         success: false,
