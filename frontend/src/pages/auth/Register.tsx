@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, User, Building2, GraduationCap, Users, Check } from 'lucide-react'
+import { api } from '@/lib/api'
+import { Mail, Lock, User, Building2, GraduationCap, Users, Check, ShieldCheck } from 'lucide-react'
 import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -9,16 +10,23 @@ import { homeForRole, useAuth } from '@/context/AuthContext'
 
 export default function Register() {
   const navigate = useNavigate()
-  const { register } = useAuth()
+  const { register, completeSession } = useAuth()
   const [role, setRole] = useState<'STUDENT' | 'SUPERVISOR'>('STUDENT')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  // After "Create account" the account exists but is locked until the email
+  // OTP is confirmed — this is the code-entry step.
+  const [otpEmail, setOtpEmail] = useState<string | null>(null)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [resendMsg, setResendMsg] = useState('')
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
-    const form = new FormData(e.currentTarget)
+    const formEl = e.currentTarget
+    const form = new FormData(formEl)
     const payload = {
       role,
       firstName: form.get('firstName'),
@@ -36,10 +44,62 @@ export default function Register() {
       setDone(true)
       setTimeout(() => navigate(homeForRole(user.role), { replace: true }), 600)
     } catch (err: any) {
-      setError(err.message || 'Registration failed')
+      if (err.needsVerification) {
+        setOtpEmail(String(err.email || form.get('email') || ''))
+        setOtpCode('')
+      } else {
+        setError(err.message || 'Registration failed')
+      }
     } finally {
       setLoading(false)
     }
+  }
+
+  const verifyCode = async () => {
+    setError('')
+    if (!/^\d{6}$/.test(otpCode.trim())) {
+      setError('Enter the 6-digit code')
+      return
+    }
+    setOtpLoading(true)
+    try {
+      const { data } = await api.post('/auth/verify-otp', { email: otpEmail, code: otpCode.trim() })
+      await completeSession(data.token)
+      setDone(true)
+      setTimeout(() => navigate(homeForRole(data.user.role), { replace: true }), 600)
+    } catch (err: any) {
+      setError(err.message || 'Verification failed')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  const resendCode = async () => {
+    setResendMsg('')
+    try {
+      const { data } = await api.post('/auth/resend-otp', { email: otpEmail })
+      setResendMsg(data.message || 'A new code has been sent')
+    } catch (err: any) {
+      setResendMsg(err.message || 'Could not resend — try again')
+    }
+  }
+
+  if (otpEmail) {
+    return (
+      <AuthLayout title="Verify your email" subtitle={`We sent a 6-digit code to ${otpEmail}. It expires in 10 minutes.`}>
+        <form onSubmit={(e) => { e.preventDefault(); verifyCode() }} className="space-y-4">
+          <Input label="Verification code" name="otp" inputMode="numeric" maxLength={6} placeholder="123456" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))} icon={<ShieldCheck className="h-4 w-4" />} autoFocus required />
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
+          {resendMsg && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">{resendMsg}</p>}
+          <Button type="submit" size="lg" className="w-full" loading={otpLoading}>Verify & continue</Button>
+          <Button type="button" variant="outline" className="w-full" onClick={resendCode}>Resend code</Button>
+        </form>
+        <p className="mt-6 text-center text-sm text-navy-500">
+          Wrong email?{' '}
+          <Link to="/register" className="font-semibold text-brand-600 hover:text-brand-700" onClick={() => setOtpEmail(null)}>Start over</Link>
+        </p>
+      </AuthLayout>
+    )
   }
 
   if (done) {

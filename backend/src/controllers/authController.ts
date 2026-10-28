@@ -1,6 +1,7 @@
 import { Response } from 'express'
 import * as argon2 from 'argon2'
 import jwt from 'jsonwebtoken'
+import { randomInt } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 import { Department, StudentProfile, SupervisorProfile, User } from '../models'
 import { AppUser, AuthRequest } from '../middleware/auth'
@@ -68,7 +69,14 @@ export const register = asyncHandler(async (req, res) => {
 
   const existing = await User.findOne({ email: String(email).toLowerCase() })
   if (existing) {
-    return res.status(400).json({ success: false, message: 'Email already registered' })
+    // An unverified signup is a stale draft (wrong email re-used, expired
+    // code): clear it so the address is free, but never touch real accounts.
+    if (existing.emailVerified) {
+      return res.status(400).json({ success: false, message: 'Email already registered' })
+    }
+    await StudentProfile.deleteMany({ userId: existing._id })
+    await SupervisorProfile.deleteMany({ userId: existing._id })
+    await User.deleteOne({ _id: existing._id })
   }
   let deptId = departmentId
   if (!deptId && departmentName) {
@@ -89,8 +97,9 @@ export const register = asyncHandler(async (req, res) => {
       firstName,
       lastName,
       role,
-      emailVerified: true,
-      emailVerifyToken: uuidv4(),
+      emailVerified: false,
+      emailOtp: String(cryptoRandomCode()),
+      emailOtpExpires: new Date(Date.now() + 10 * 60 * 1000),
     })
 
     if (role === 'STUDENT') {
@@ -120,15 +129,83 @@ export const register = asyncHandler(async (req, res) => {
     throw err
   }
 
-  const token = signToken(user)
-  const profile = await buildProfile(String(user._id))
+  // No token yet: the session is issued only after the email OTP is verified
+  // (POST /auth/verify-otp), delivered through the admin mail outbox.
+  const code = user.emailOtp
+  const { queueMail } = await import('../services/mailer')
+  await queueMail({
+    to: user.email,
+    subject: 'Your FYP Manager verification code',
+    body: `Hello ${user.firstName},\n\nYour verification code is: ${code}\nIt expires in 10 minutes.`,
+  })
 
   res.status(201).json({
     success: true,
-    message: 'Account created successfully',
+    message: 'Account created — enter the 6-digit code we sent to your email',
+    needsVerification: true,
+    email: user.email,
+  })
+})
+
+/**
+ * 6-digit signup OTP. Delivered only through the admin outbox (no SMTP on the
+ * free tier), so signups are gated on the office relaying the code.
+ */
+const cryptoRandomCode = () => randomInt(100000, 1000000)
+
+export const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, code } = req.body
+  if (!email || !code) return res.status(400).json({ success: false, message: 'Email and code are required' })
+  const user: any = await User.findOne({ email: String(email).toLowerCase() })
+  if (!user) return res.status(400).json({ success: false, message: 'No pending account for this email' })
+  if (user.emailVerified) return res.json({ already: true })
+  if (!user.emailOtp || !user.emailOtpExpires || user.emailOtpExpires < new Date()) {
+    return res.status(400).json({ success: false, message: 'Code expired — request a new one' })
+  }
+  if ((user.emailOtpAttempts || 0) >= 5) {
+    return res.status(429).json({ success: false, message: 'Too many attempts — request a new code' })
+  }
+  if (String(user.emailOtp) !== String(code).trim()) {
+    user.emailOtpAttempts = (user.emailOtpAttempts || 0) + 1
+    await user.save()
+    return res.status(400).json({ success: false, message: 'Incorrect code' })
+  }
+
+  user.emailVerified = true
+  user.emailOtp = null
+  user.emailOtpExpires = null
+  user.emailOtpAttempts = 0
+  user.lastLoginAt = new Date()
+  await user.save()
+
+  const token = signToken(user)
+  const profile = await buildProfile(String(user._id))
+  res.json({
+    success: true,
+    message: 'Email verified — welcome!',
     token,
     user: profile,
   })
+})
+
+/** Re-issue a signup code for accounts that are still unverified. */
+export const resendOtp = asyncHandler(async (req, res) => {
+  const user: any = await User.findOne({ email: String(req.body.email || '').toLowerCase() })
+  if (!user) return res.json({ success: true, message: 'If the email exists, a new code has been sent' })
+  if (user.emailVerified) return res.status(400).json({ success: false, message: 'This account is already verified' })
+
+  user.emailOtp = String(cryptoRandomCode())
+  user.emailOtpExpires = new Date(Date.now() + 10 * 60 * 1000)
+  user.emailOtpAttempts = 0
+  await user.save()
+
+  const { queueMail } = await import('../services/mailer')
+  await queueMail({
+    to: user.email,
+    subject: 'Your FYP Manager verification code',
+    body: `Hello ${user.firstName},\n\nYour verification code is: ${user.emailOtp}\nIt expires in 10 minutes.`,
+  })
+  res.json({ success: true, message: 'A new code has been sent' })
 })
 
 export const login = asyncHandler(async (req, res) => {
@@ -148,6 +225,9 @@ export const login = asyncHandler(async (req, res) => {
   const valid = await argon2.verify(user.passwordHash, password)
   if (!valid) {
     return res.status(401).json({ success: false, message: 'Invalid email or password' })
+  }
+  if (!user.emailVerified) {
+    return res.status(403).json({ success: false, message: 'Verify your email first — request a new code from the register page' })
   }
 
   user.lastLoginAt = new Date()

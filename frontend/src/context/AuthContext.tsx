@@ -28,6 +28,7 @@ interface AuthContextValue {
   loading: boolean
   login: (email: string, password: string) => Promise<AuthUser>
   register: (payload: Record<string, unknown>) => Promise<AuthUser>
+  completeSession: (token: string) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<void>
   updateUser: (user: AuthUser) => void
@@ -90,10 +91,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (payload: Record<string, unknown>) => {
     const { data } = await api.post('/auth/register', payload)
+    if (!data.token) {
+      // Registration now stops at OTP verification; the session is issued
+      // later via completeSession once the email code is confirmed.
+      const err: any = new Error(data.message || 'Registration incomplete')
+      err.code = 'OTP_REQUIRED'
+      err.needsVerification = true
+      err.email = data.email
+      throw err
+    }
     tokenStore.set(data.token)
     setUser(data.user)
     return data.user as AuthUser
   }, [])
+
+  /** Adopt a freshly issued token (e.g. after email-OTP verification). */
+  const completeSession = useCallback(async (token: string) => {
+    tokenStore.set(token)
+    setLoading(true)
+    await refresh()
+  }, [refresh])
 
   const logout = useCallback(async () => {
     try {
@@ -106,8 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, login, register, logout, refresh, updateUser: setUser }),
-    [user, loading, login, register, logout, refresh]
+    () => ({ user, loading, login, register, completeSession, logout, refresh, updateUser: setUser }),
+    [user, loading, login, register, completeSession, logout, refresh]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

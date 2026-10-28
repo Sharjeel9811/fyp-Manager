@@ -24,6 +24,8 @@ const loginLimiter = rateLimit({
 })
 
 router.post('/register', auth.register)
+router.post('/verify-otp', auth.verifyOtp)
+router.post('/resend-otp', auth.resendOtp)
 router.post('/login', loginLimiter, auth.login)
 router.get('/verify-email/:token', auth.verifyEmail)
 router.post('/forgot-password', auth.forgotPassword)
