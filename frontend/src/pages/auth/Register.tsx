@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '@/lib/api'
+import api from '@/lib/api'
 import { Mail, Lock, User, Building2, GraduationCap, Users, Check, ShieldCheck } from 'lucide-react'
 import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
