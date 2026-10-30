@@ -719,7 +719,7 @@ export function AdminMail() {
       <PageHeader
         eyebrow="System"
         title="Mail outbox"
-        description="System mail queued for delivery. With no SMTP provider, copy a link here and send it to the recipient yourself."
+        description="Mail is delivered by email when SMTP is configured. Anything that fails to send is queued here so you can copy the link or code and relay it manually."
         actions={<Button size="sm" variant="outline" onClick={() => refetch()}>Refresh</Button>}
       />
       <div className="space-y-3">
