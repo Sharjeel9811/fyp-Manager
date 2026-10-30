@@ -8,16 +8,17 @@ const router = Router()
 /**
  * The global /api limiter (1000 / 15 min) is far too loose for credential
  * stuffing. This one only counts *failed* logins, so normal sign-ins never
- * consume the budget: 10 bad passwords per IP per 15 minutes.
+ * consume the budget: 10 bad passwords per IP+account per 15 minutes.
  *
- * Deliberately keyed by IP (express-rate-limit's default) rather than email, so
- * an attacker cannot lock a known account out of its own login. On a shared
- * campus NAT, raise `max` or key by IP + email once Redis is available.
+ * Keyed by IP + email so a burst of failures against one account (or one
+ * tester on a shared campus NAT) cannot lock out every other account behind
+ * the same address.
  */
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   skipSuccessfulRequests: true,
+  keyGenerator: (req: any) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}`,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many failed login attempts. Try again in 15 minutes.' },
