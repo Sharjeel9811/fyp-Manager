@@ -133,7 +133,7 @@ export const register = asyncHandler(async (req, res) => {
   // (POST /auth/verify-otp), delivered through the admin mail outbox.
   const code = user.emailOtp
   const { queueMail } = await import('../services/mailer')
-  await queueMail({
+  const sent = await queueMail({
     to: user.email,
     subject: 'Your FYP Manager verification code',
     body: `Hello ${user.firstName},\n\nYour verification code is: ${code}\nIt expires in 10 minutes.`,
@@ -141,7 +141,10 @@ export const register = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: 'Account created — enter the 6-digit code we sent to your email',
+    delivered: sent,
+    message: sent
+      ? `Account created — we emailed a 6-digit code to ${user.email}`
+      : 'Account created — the verification code is queued for the FYP office to relay',
     needsVerification: true,
     email: user.email,
   })
@@ -200,12 +203,16 @@ export const resendOtp = asyncHandler(async (req, res) => {
   await user.save()
 
   const { queueMail } = await import('../services/mailer')
-  await queueMail({
+  const sent = await queueMail({
     to: user.email,
     subject: 'Your FYP Manager verification code',
     body: `Hello ${user.firstName},\n\nYour verification code is: ${user.emailOtp}\nIt expires in 10 minutes.`,
   })
-  res.json({ success: true, message: 'A new code has been sent' })
+  res.json({
+    success: true,
+    delivered: sent,
+    message: sent ? 'A new code has been emailed to you' : 'A new code has been queued — the FYP office will relay it',
+  })
 })
 
 export const login = asyncHandler(async (req, res) => {
@@ -352,26 +359,38 @@ export const verifyEmail = asyncHandler(async (req, res) => {
 })
 
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const user: any = await User.findOne({ email: String(req.body.email || '').toLowerCase() })
-  if (user) {
-    const token = uuidv4()
-    user.passwordResetToken = token
-    user.passwordResetExpires = new Date(Date.now() + 3600000)
-    await user.save()
+  const email = String(req.body.email || '').trim().toLowerCase()
+  if (!email) return res.status(400).json({ success: false, message: 'Email is required' })
 
-    // No SMTP on the free tier: deliver the reset link through the admin
-    // outbox so the FYP office can relay it to the user.
-    const { queueMail } = await import('../services/mailer')
-    const frontend = process.env.FRONTEND_URL || 'https://fypmanager.vercel.app'
-    const link = `${frontend}/reset-password?token=${token}`
-    await queueMail({
-      to: user.email,
-      subject: 'Reset your FYP Manager password',
-      body: `Hello ${user.firstName},\n\nUse the link below within one hour to set a new password.\n\nIf you did not request this, you can ignore this message.`,
-      links: [link],
-    })
+  const user: any = await User.findOne({ email })
+  // Explicit enumeration is intentional here: the product owner wants users to
+  // be told when an address has no account instead of a silent "sent".
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'No account is registered with that email address' })
   }
-  res.json({ success: true, message: 'If the email exists, a reset link has been sent' })
+
+  const token = uuidv4()
+  user.passwordResetToken = token
+  user.passwordResetExpires = new Date(Date.now() + 3600000)
+  await user.save()
+
+  const { queueMail } = await import('../services/mailer')
+  const frontend = process.env.FRONTEND_URL || 'https://fypmanager.vercel.app'
+  const link = `${frontend}/reset-password?token=${token}`
+  const sent = await queueMail({
+    to: user.email,
+    subject: 'Reset your FYP Manager password',
+    body: `Hello ${user.firstName},\n\nUse the link below within one hour to set a new password.\n\n${link}\n\nIf you did not request this, you can ignore this message.`,
+    links: [link],
+  })
+
+  res.json({
+    success: true,
+    delivered: sent,
+    message: sent
+      ? `A reset link has been emailed to ${user.email}`
+      : 'Reset link queued — the FYP office will relay it to your email',
+  })
 })
 
 export const resetPassword = asyncHandler(async (req, res) => {

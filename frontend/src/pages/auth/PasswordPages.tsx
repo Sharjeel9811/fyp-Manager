@@ -8,6 +8,8 @@ import api from '@/lib/api'
 
 export function ForgotPassword() {
   const [sent, setSent] = useState(false)
+  const [sentTo, setSentTo] = useState('')
+  const [sentMsg, setSentMsg] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -17,7 +19,9 @@ export function ForgotPassword() {
     setError('')
     setLoading(true)
     try {
-      await api.post('/auth/forgot-password', { email })
+      const { data } = await api.post('/auth/forgot-password', { email })
+      setSentTo(email)
+      setSentMsg(data.message || 'Reset link sent')
       setSent(true)
     } catch (err: any) {
       setError(err.message)
@@ -32,7 +36,7 @@ export function ForgotPassword() {
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
           <h3 className="mt-3 text-base font-semibold text-emerald-900">Check your email</h3>
-          <p className="mt-1 text-sm text-emerald-700">If an account exists for that address, a reset link is on its way.</p>
+          <p className="mt-1 text-sm text-emerald-700">{sentMsg || `A reset link is on its way to ${sentTo}.`}</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
