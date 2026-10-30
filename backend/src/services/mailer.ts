@@ -41,10 +41,12 @@ function getTransport(): Transporter | null {
   transport = settings
     ? nodemailer.createTransport({
         ...settings,
-        // Serverless functions are short-lived; don't wait forever on a dead port.
-        connectionTimeout: 10_000,
-        greetingTimeout: 10_000,
-        socketTimeout: 15_000,
+        // The deployment runs on a 10s serverless limit. SMTP must fail fast:
+        // a slow/unreachable relay has to fall back to the outbox, not hold the
+        // signup/reset request open until the platform kills it.
+        connectionTimeout: 3_500,
+        greetingTimeout: 3_500,
+        socketTimeout: 5_000,
       })
     : null
   return transport
@@ -63,12 +65,17 @@ export async function queueMail({ to, subject, body, links = [] }: QueuedMail): 
   const t = getTransport()
   if (t) {
     try {
-      await t.sendMail({
-        from: process.env.MAIL_FROM || process.env.SMTP_USER || process.env.MAIL_USER,
-        to,
-        subject,
-        text: body,
-      })
+      // Hard cap the whole SMTP attempt so a stalled relay cannot exhaust the
+      // serverless function's execution budget.
+      await Promise.race([
+        t.sendMail({
+          from: process.env.MAIL_FROM || process.env.SMTP_USER || process.env.MAIL_USER,
+          to,
+          subject,
+          text: body,
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP attempt timed out')), 6_000)),
+      ])
       return true
     } catch (err) {
       // Fall through to the outbox so the message isn't lost.
