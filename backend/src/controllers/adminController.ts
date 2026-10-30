@@ -164,7 +164,18 @@ export const getUsers = asyncHandler(async (req: AuthRequest, res: Response) => 
     }
   })
 
-  res.json({ success: true, users: rows })
+  const q = String(req.query.search || '').trim().toLowerCase()
+  const role = String(req.query.role || '').trim().toUpperCase()
+  // The admin UI's search box filters by name, email, student ID, or staff ID.
+  const filtered = rows.filter((r: any) => {
+    if (role && r.role !== role) return false
+    if (!q) return true
+    return [r.name, r.email, r.studentId, r.employeeId]
+      .filter(Boolean)
+      .some((v: string) => String(v).toLowerCase().includes(q))
+  })
+
+  res.json({ success: true, users: filtered })
 })
 
 export const createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
