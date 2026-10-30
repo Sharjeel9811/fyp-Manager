@@ -1,7 +1,7 @@
 import { Response } from 'express'
 import * as argon2 from 'argon2'
 import jwt from 'jsonwebtoken'
-import { randomInt } from 'crypto'
+import { createHmac, randomInt } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 import { Department, StudentProfile, SupervisorProfile, User } from '../models'
 import { AppUser, AuthRequest } from '../middleware/auth'
@@ -90,6 +90,7 @@ export const register = asyncHandler(async (req, res) => {
 
   const passwordHash = await argon2.hash(password)
   let user: any
+  const verificationCode = String(cryptoRandomCode())
   try {
     user = await User.create({
       email: String(email).toLowerCase(),
@@ -98,8 +99,8 @@ export const register = asyncHandler(async (req, res) => {
       lastName,
       role,
       emailVerified: false,
-      emailOtp: String(cryptoRandomCode()),
-      emailOtpExpires: new Date(Date.now() + 10 * 60 * 1000),
+      emailOtp: hashOtp(verificationCode),
+      emailOtpExpires: new Date(Date.now() + otpValidityMinutes() * 60 * 1000),
     })
 
     if (role === 'STUDENT') {
@@ -130,13 +131,12 @@ export const register = asyncHandler(async (req, res) => {
   }
 
   // No token yet: the session is issued only after the email OTP is verified
-  // (POST /auth/verify-otp), delivered through the admin mail outbox.
-  const code = user.emailOtp
-  const { queueMail } = await import('../services/mailer')
+  // (POST /auth/verify-otp).
+  const { queueMail, appName } = await import('../services/mailer')
   const sent = await queueMail({
     to: user.email,
-    subject: 'Your FYP Manager verification code',
-    body: `Hello ${user.firstName},\n\nYour verification code is: ${code}\nIt expires in 10 minutes.`,
+    subject: `Your ${appName()} verification code`,
+    body: `Hello ${user.firstName},\n\nYour ${appName()} verification code is: ${verificationCode}\nIt expires in ${otpValidityMinutes()} minutes.`,
   })
 
   res.status(201).json({
@@ -155,6 +155,11 @@ export const register = asyncHandler(async (req, res) => {
  * free tier), so signups are gated on the office relaying the code.
  */
 const cryptoRandomCode = () => randomInt(100000, 1000000)
+const otpValidityMinutes = () => Math.max(1, Number(process.env.OTP_VALIDITY_MINUTES) || 5)
+const otpMaxAttempts = () => Math.max(1, Number(process.env.OTP_MAX_ATTEMPTS) || 5)
+/** OTPs are stored HMAC-hashed so a DB dump doesn't expose live codes. */
+const hashOtp = (code: string) =>
+  createHmac('sha256', process.env.OTP_SECRET || 'fyp-manager-otp').update(String(code).trim()).digest('hex')
 
 export const verifyOtp = asyncHandler(async (req, res) => {
   const { email, code } = req.body
@@ -165,10 +170,12 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   if (!user.emailOtp || !user.emailOtpExpires || user.emailOtpExpires < new Date()) {
     return res.status(400).json({ success: false, message: 'Code expired — request a new one' })
   }
-  if ((user.emailOtpAttempts || 0) >= 5) {
+  if ((user.emailOtpAttempts || 0) >= otpMaxAttempts()) {
     return res.status(429).json({ success: false, message: 'Too many attempts — request a new code' })
   }
-  if (String(user.emailOtp) !== String(code).trim()) {
+  const provided = String(code).trim()
+  const matches = user.emailOtp === hashOtp(provided) || user.emailOtp === provided
+  if (!matches) {
     user.emailOtpAttempts = (user.emailOtpAttempts || 0) + 1
     await user.save()
     return res.status(400).json({ success: false, message: 'Incorrect code' })
@@ -197,16 +204,17 @@ export const resendOtp = asyncHandler(async (req, res) => {
   if (!user) return res.json({ success: true, message: 'If the email exists, a new code has been sent' })
   if (user.emailVerified) return res.status(400).json({ success: false, message: 'This account is already verified' })
 
-  user.emailOtp = String(cryptoRandomCode())
-  user.emailOtpExpires = new Date(Date.now() + 10 * 60 * 1000)
+  const freshCode = String(cryptoRandomCode())
+  user.emailOtp = hashOtp(freshCode)
+  user.emailOtpExpires = new Date(Date.now() + otpValidityMinutes() * 60 * 1000)
   user.emailOtpAttempts = 0
   await user.save()
 
-  const { queueMail } = await import('../services/mailer')
+  const { queueMail, appName } = await import('../services/mailer')
   const sent = await queueMail({
     to: user.email,
-    subject: 'Your FYP Manager verification code',
-    body: `Hello ${user.firstName},\n\nYour verification code is: ${user.emailOtp}\nIt expires in 10 minutes.`,
+    subject: `Your ${appName()} verification code`,
+    body: `Hello ${user.firstName},\n\nYour ${appName()} verification code is: ${freshCode}\nIt expires in ${otpValidityMinutes()} minutes.`,
   })
   res.json({
     success: true,
@@ -374,13 +382,13 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   user.passwordResetExpires = new Date(Date.now() + 3600000)
   await user.save()
 
-  const { queueMail } = await import('../services/mailer')
+  const { queueMail, appName } = await import('../services/mailer')
   const frontend = process.env.FRONTEND_URL || 'https://fypmanager.vercel.app'
   const link = `${frontend}/reset-password?token=${token}`
   const sent = await queueMail({
     to: user.email,
-    subject: 'Reset your FYP Manager password',
-    body: `Hello ${user.firstName},\n\nUse the link below within one hour to set a new password.\n\n${link}\n\nIf you did not request this, you can ignore this message.`,
+    subject: `Reset your ${appName()} password`,
+    body: `Hello ${user.firstName},\n\nUse the link below within one hour to set a new ${appName()} password.\n\n${link}\n\nIf you did not request this, you can ignore this message.`,
     links: [link],
   })
 

@@ -18,26 +18,35 @@ export interface QueuedMail {
 
 let transport: Transporter | null | undefined
 
+function resolveSettings() {
+  // Custom SMTP host wins; otherwise MAIL_SERVICE=gmail maps to Gmail's
+  // submission endpoint. Both credential naming styles are accepted.
+  const service = String(process.env.MAIL_SERVICE || '').toLowerCase()
+  const user = process.env.SMTP_USER || process.env.MAIL_USER
+  const pass = process.env.SMTP_PASS || process.env.MAIL_PASS
+  if (!user || !pass) return null
+  if (process.env.SMTP_HOST) {
+    const port = Number(process.env.SMTP_PORT || 587)
+    return { host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user, pass } }
+  }
+  if (service === 'gmail') {
+    return { host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass } }
+  }
+  return null
+}
+
 function getTransport(): Transporter | null {
   if (transport !== undefined) return transport
-  const host = process.env.SMTP_HOST
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
-  if (!host || !user || !pass) {
-    transport = null
-    return transport
-  }
-  const port = Number(process.env.SMTP_PORT || 587)
-  transport = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-    // Serverless functions are short-lived; don't wait forever on a dead port.
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 15_000,
-  })
+  const settings = resolveSettings()
+  transport = settings
+    ? nodemailer.createTransport({
+        ...settings,
+        // Serverless functions are short-lived; don't wait forever on a dead port.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 15_000,
+      })
+    : null
   return transport
 }
 
@@ -45,12 +54,17 @@ export function mailTransportConfigured(): boolean {
   return !!getTransport()
 }
 
+/** App display name used in mail copy/subjects (APP_NAME env). */
+export function appName(): string {
+  return process.env.APP_NAME || 'FYP Manager'
+}
+
 export async function queueMail({ to, subject, body, links = [] }: QueuedMail): Promise<boolean> {
   const t = getTransport()
   if (t) {
     try {
       await t.sendMail({
-        from: process.env.MAIL_FROM || process.env.SMTP_USER,
+        from: process.env.MAIL_FROM || process.env.SMTP_USER || process.env.MAIL_USER,
         to,
         subject,
         text: body,
