@@ -166,7 +166,7 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   if (!email || !code) return res.status(400).json({ success: false, message: 'Email and code are required' })
   const user: any = await User.findOne({ email: String(email).toLowerCase() })
   if (!user) return res.status(400).json({ success: false, message: 'No pending account for this email' })
-  if (user.emailVerified) return res.json({ already: true })
+  if (user.emailVerified) return res.json({ success: true, alreadyVerified: true, message: 'This email is already verified — just sign in' })
   if (!user.emailOtp || !user.emailOtpExpires || user.emailOtpExpires < new Date()) {
     return res.status(400).json({ success: false, message: 'Code expired — request a new one' })
   }
