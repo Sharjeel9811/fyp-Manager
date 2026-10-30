@@ -6,7 +6,7 @@
  *
  * No new dependencies: nodemailer is already part of the backend.
  */
-import nodemailer from 'nodemailer'
+import nodemailer, { type Transporter } from 'nodemailer'
 import { MailOutbox } from '../models'
 
 export interface QueuedMail {
@@ -16,9 +16,9 @@ export interface QueuedMail {
   links?: string[]
 }
 
-let transport: nodemailer.Transporter | null | undefined
+let transport: Transporter | null | undefined
 
-function getTransport(): nodemailer.Transporter | null {
+function getTransport(): Transporter | null {
   if (transport !== undefined) return transport
   const host = process.env.SMTP_HOST
   const user = process.env.SMTP_USER
