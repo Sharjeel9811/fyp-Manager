@@ -146,6 +146,7 @@ export const register = asyncHandler(async (req, res) => {
       ? `Account created — we emailed a 6-digit code to ${user.email}`
       : 'Account created — the verification code is queued for the FYP office to relay',
     needsVerification: true,
+    expiresInMinutes: otpValidityMinutes(),
     email: user.email,
   })
 })
@@ -219,6 +220,7 @@ export const resendOtp = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     delivered: sent,
+    expiresInMinutes: otpValidityMinutes(),
     message: sent ? 'A new code has been emailed to you' : 'A new code has been queued — the FYP office will relay it',
   })
 })

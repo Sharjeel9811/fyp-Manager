@@ -18,6 +18,7 @@ export default function Register() {
   // After "Create account" the account exists but is locked until the email
   // OTP is confirmed — this is the code-entry step.
   const [otpEmail, setOtpEmail] = useState<string | null>(null)
+  const [otpMinutes, setOtpMinutes] = useState(5)
   const [otpCode, setOtpCode] = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
   const [resendMsg, setResendMsg] = useState('')
@@ -46,6 +47,7 @@ export default function Register() {
     } catch (err: any) {
       if (err.needsVerification) {
         setOtpEmail(String(err.email || form.get('email') || ''))
+        setOtpMinutes(Number(err.expiresInMinutes) || 5)
         setOtpCode('')
       } else {
         setError(err.message || 'Registration failed')
@@ -86,7 +88,7 @@ export default function Register() {
 
   if (otpEmail) {
     return (
-      <AuthLayout title="Verify your email" subtitle={`We sent a 6-digit code to ${otpEmail}. It expires in 10 minutes.`}>
+      <AuthLayout title="Verify your email" subtitle={`We sent a 6-digit code to ${otpEmail}. It expires in ${otpMinutes} minutes.`}>
         <form onSubmit={(e) => { e.preventDefault(); verifyCode() }} className="space-y-4">
           <Input label="Verification code" name="otp" inputMode="numeric" maxLength={6} placeholder="123456" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))} icon={<ShieldCheck className="h-4 w-4" />} autoFocus required />
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}

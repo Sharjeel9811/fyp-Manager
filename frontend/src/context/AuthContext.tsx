@@ -98,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       err.code = 'OTP_REQUIRED'
       err.needsVerification = true
       err.email = data.email
+      err.expiresInMinutes = data.expiresInMinutes
       throw err
     }
     tokenStore.set(data.token)
