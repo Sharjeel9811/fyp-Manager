@@ -83,13 +83,13 @@ export async function getProjectRepoFetch(projectId: string): Promise<{ repo: st
 
   const [repoInfo, commitsRaw, contributors]: any[] = await Promise.all([
     gh(`/repos/${repo}`),
-    gh(`/repos/${repo}/commits?per_page=10`),
+    gh(`/repos/${repo}/commits?per_page=100`),
     gh(`/repos/${repo}/contributors?per_page=10`), // counts commits per author
   ])
 
-  // Commit +± are only on the detail endpoint; one extra call per commit is
+  // Commit +/- are only on the detail endpoint; one extra call per commit is
   // wasteful, so stats come from the contributors endpoint instead.
-  const commits: CommitSummary[] = (commitsRaw as any[]).slice(0, 10).map((c) => ({
+  const allCommits = (commitsRaw as any[]).slice(0, 100).map((c) => ({
     sha: String(c.sha).slice(0, 8),
     message: String(c.commit?.message || '').split('\n')[0],
     author: c.commit?.author?.name || c.author?.login || 'Unknown',
@@ -97,6 +97,20 @@ export async function getProjectRepoFetch(projectId: string): Promise<{ repo: st
     additions: 0,
     deletions: 0,
   }))
+  const commits: CommitSummary[] = allCommits.slice(0, 10)
+
+  // Commit momentum: commits per day for the trailing 14 days (zeros included
+  // so the activity chart has a continuous axis).
+  const buckets = new Map<string, number>()
+  for (const c of allCommits) {
+    const day = String(c.date || '').slice(0, 10)
+    if (day) buckets.set(day, (buckets.get(day) || 0) + 1)
+  }
+  const activity: Array<{ date: string; commits: number }> = []
+  for (let i = 13; i >= 0; i--) {
+    const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)
+    activity.push({ date: day, commits: buckets.get(day) || 0 })
+  }
 
   const data = {
     repo,
@@ -107,6 +121,7 @@ export async function getProjectRepoFetch(projectId: string): Promise<{ repo: st
     defaultBranch: repoInfo.default_branch || 'main',
     pushedAt: repoInfo.pushed_at || null,
     commits,
+    activity,
     contributors: (contributors as any[]).map((u) => ({
       login: u.login,
       commits: u.contributions,

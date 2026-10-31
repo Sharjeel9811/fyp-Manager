@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { GitBranch, Github, Link2, Loader2, Star, UserRound, RefreshCw, ExternalLink, AlertTriangle, UploadCloud } from 'lucide-react'
 import { useApiQuery, useApiMutation } from '@/hooks/useApi'
 import { Card } from '@/components/ui/Card'
@@ -178,6 +179,7 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
   const feed = data?.feed
   const commits: any[] = feed?.commits ?? []
   const contributors: any[] = feed?.contributors ?? []
+  const activity: Array<{ date: string; commits: number }> = feed?.activity ?? []
 
   const save = async () => {
     setMessage(null)
@@ -290,6 +292,25 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
           <p className="mt-0.5 font-semibold text-navy-900">{feed.pushedAt ? relativeTime(new Date(feed.pushedAt)) : '—'}</p>
         </div>
       </div>
+
+      {activity.length > 0 && (
+        <div className="mt-5 rounded-xl border border-navy-100 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Commit activity · last 14 days</p>
+            <Badge variant="neutral">{activity.reduce((n, a) => n + a.commits, 0)} commits</Badge>
+          </div>
+          <div className="mt-3 h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={activity}>
+                <XAxis dataKey="date" tickFormatter={(v: string) => String(v).slice(5)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
+                <Tooltip cursor={{ fill: 'rgba(99,102,241,0.08)' }} />
+                <Bar dataKey="commits" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={22} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
