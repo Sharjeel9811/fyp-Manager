@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Mail, Lock, Eye, EyeOff, ArrowRight, GraduationCap, Users, ShieldCheck } from 'lucide-react'
 import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { fadeUp } from '@/components/motion/Reveal'
 import { cn } from '@/lib/utils'
 import { homeForRole, useAuth } from '@/context/AuthContext'
 
@@ -46,7 +48,7 @@ export default function Login() {
 
   return (
     <AuthLayout title="Welcome back" subtitle="Sign in to continue managing your final year project.">
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <motion.form onSubmit={handleSubmit} className="space-y-5" {...fadeUp}>
         <Input
           label="Email address"
           type="email"
@@ -91,33 +93,56 @@ export default function Login() {
           </Link>
         </div>
 
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
+        <AnimatePresence initial={false}>
+          {error && (
+            <motion.p
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              role="alert"
+              className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+            >
+              {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
 
         <Button type="submit" size="lg" className="w-full" loading={loading}>
           {!loading && <>Sign in <ArrowRight className="h-4 w-4" /></>}
         </Button>
-      </form>
+      </motion.form>
 
-      <div className="mt-7">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18, duration: 0.4 }}
+        className="mt-7"
+      >
         <div className="relative">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-navy-200" /></div>
           <div className="relative flex justify-center"><span className="bg-white px-3 text-xs font-medium uppercase tracking-wide text-navy-400">Demo accounts</span></div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
-          {demos.map((d) => (
-            <button
+          {demos.map((d, i) => (
+            <motion.button
               key={d.role}
               type="button"
               onClick={() => { setEmail(d.email); setPassword('password123') }}
-              className={cn('flex flex-col items-center gap-1.5 rounded-xl border bg-white px-2 py-3 text-xs font-semibold ring-1 ring-inset transition-all hover:-translate-y-0.5 hover:shadow-soft', d.tone)}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.24 + i * 0.05, duration: 0.3 }}
+              className={cn('flex flex-col items-center gap-1.5 rounded-xl border bg-white px-2 py-3 text-xs font-semibold ring-1 ring-inset transition-shadow hover:shadow-soft', d.tone)}
             >
               <d.icon className="h-4 w-4" />
               {d.role}
-            </button>
+            </motion.button>
           ))}
         </div>
         <p className="mt-2 text-center text-[11px] text-navy-400">Click a role to autofill demo credentials (password123).</p>
-      </div>
+      </motion.div>
 
       <p className="mt-8 text-center text-sm text-navy-500">
         Don't have an account?{' '}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   LayoutDashboard, FolderKanban, FileText, Users, ListChecks, UploadCloud,
   MessageSquare, Award, Bell, UserCircle, FileSearch, ClipboardCheck, Activity,
@@ -215,7 +215,11 @@ export function DashboardLayout({ role }: { role: Role }) {
                       )}
                     >
                       {active && (
-                        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand-400" />
+                        <motion.span
+                          layoutId="sidebar-active"
+                          transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                          className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand-400"
+                        />
                       )}
                       <item.icon className={cn('h-4 w-4 shrink-0', active ? 'text-brand-300' : 'text-navy-400 group-hover:text-navy-200')} />
                       {item.label}
@@ -255,8 +259,19 @@ export function DashboardLayout({ role }: { role: Role }) {
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-navy-950/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 bg-navy-950 shadow-2xl animate-fade-in">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 bg-navy-950/60 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+          />
+          <motion.aside
+            initial={{ x: -288 }}
+            animate={{ x: 0 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+            className="absolute inset-y-0 left-0 w-72 bg-navy-950 shadow-2xl"
+          >
             <button
               onClick={() => setMobileOpen(false)}
               className="absolute right-3 top-4 z-10 rounded-lg p-2 text-navy-300 hover:bg-white/10 hover:text-white"
@@ -265,7 +280,7 @@ export function DashboardLayout({ role }: { role: Role }) {
               <X className="h-5 w-5" />
             </button>
             {SidebarContent}
-          </aside>
+          </motion.aside>
         </div>
       )}
 
@@ -323,7 +338,12 @@ export function DashboardLayout({ role }: { role: Role }) {
               {notifOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setNotifOpen(false)} />
-                  <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-navy-200 bg-white shadow-lift animate-fade-in">
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-navy-200 bg-white shadow-lift"
+                  >
                     <div className="flex items-center justify-between border-b border-navy-100 px-4 py-3">
                       <p className="text-sm font-semibold text-navy-900">Notifications</p>
                       {unread > 0 ? (
@@ -365,7 +385,7 @@ export function DashboardLayout({ role }: { role: Role }) {
                         View all notifications
                       </Link>
                     </div>
-                  </div>
+                  </motion.div>
                 </>
               )}
             </div>
@@ -383,7 +403,12 @@ export function DashboardLayout({ role }: { role: Role }) {
               {userMenu && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setUserMenu(false)} />
-                  <div className="absolute right-0 z-40 mt-2 w-60 overflow-hidden rounded-2xl border border-navy-200 bg-white shadow-lift animate-fade-in">
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="absolute right-0 z-40 mt-2 w-60 overflow-hidden rounded-2xl border border-navy-200 bg-white shadow-lift"
+                  >
                     <div className="border-b border-navy-100 px-4 py-3">
                       <p className="text-sm font-semibold text-navy-900">{user?.firstName} {user?.lastName}</p>
                       <p className="truncate text-xs text-navy-500">{user?.email}</p>
@@ -400,7 +425,7 @@ export function DashboardLayout({ role }: { role: Role }) {
                         <LogOut className="h-4 w-4" /> Sign out
                       </button>
                     </div>
-                  </div>
+                  </motion.div>
                 </>
               )}
             </div>

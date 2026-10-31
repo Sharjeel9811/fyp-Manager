@@ -158,6 +158,23 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
+/* Respect the OS "reduce motion" setting everywhere: CSS keyframes and
+   transitions are collapsed, while spinners keep turning so loading states
+   still read as active. Framer Motion is handled by MotionConfig. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-spin,
+  .animate-ping {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * Dark-theme fine tuning. These rules sit outside @layer so they win over
  * Tailwind utilities from any layer: semantic status chips keep their pastel
@@ -190,6 +207,22 @@ html.dark .ring-amber-200 { --tw-ring-color: rgb(120 53 15); }
 html.dark .ring-red-200 { --tw-ring-color: rgb(127 29 29); }
 html.dark .ring-sky-200 { --tw-ring-color: rgb(12 74 110); }
 html.dark .ring-red-500 { --tw-ring-color: rgb(220 38 38); }
+
+/* Solid status surfaces used by the auth result panels. */
+html.dark .bg-emerald-100 { background-color: rgb(6 95 70); }
+html.dark .bg-amber-100 { background-color: rgb(146 64 14); }
+html.dark .bg-red-100 { background-color: rgb(153 27 27); }
+html.dark .border-emerald-200 { border-color: rgb(6 95 70); }
+html.dark .border-amber-200 { border-color: rgb(146 64 14); }
+html.dark .border-red-200 { border-color: rgb(153 27 27); }
+html.dark .text-emerald-600 { color: rgb(52 211 153); }
+
+/* Gradient *starts* need their own swap: bg-*-50 overrides don't reach
+   `from-*-50` because that only sets --tw-gradient-from. */
+html.dark .from-emerald-50 { --tw-gradient-from: rgb(6 78 59); }
+html.dark .from-amber-50 { --tw-gradient-from: rgb(120 53 15); }
+html.dark .from-red-50 { --tw-gradient-from: rgb(127 29 29); }
+html.dark .from-brand-50 { --tw-gradient-from: rgb(30 27 75); }
 /* Skeleton shimmer, hover states, and the navy/brand palettes follow the variable swaps automatically. */
 
 /* touch: force dev re-transform */

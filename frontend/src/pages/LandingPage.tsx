@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Reveal } from '@/components/motion/Reveal'
 
 const features = [
   { icon: FileText, title: 'Proposal workflow', desc: 'Draft, submit, review, and revise proposals with a full status timeline and version history.', tone: 'text-brand-600 bg-brand-50' },
@@ -179,7 +180,7 @@ export default function LandingPage() {
       </section>
 
       <section className="border-y border-navy-100 bg-navy-50/50">
-        <div className="container-page grid grid-cols-2 gap-6 py-8 sm:grid-cols-4">
+        <Reveal className="container-page grid grid-cols-2 gap-6 py-8 sm:grid-cols-4">
           {[
             { value: '48+', label: 'Active projects' },
             { value: '96', label: 'Students onboard' },
@@ -191,11 +192,11 @@ export default function LandingPage() {
               <p className="mt-1 text-xs font-medium text-navy-500 sm:text-sm">{s.label}</p>
             </div>
           ))}
-        </div>
+        </Reveal>
       </section>
 
       <section id="features" className="container-page py-20 sm:py-28">
-        <div className="mx-auto max-w-2xl text-center">
+        <Reveal className="mx-auto max-w-2xl text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-brand-600">Everything in one place</p>
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-navy-900 sm:text-4xl">
             From first proposal to final defense
@@ -203,23 +204,23 @@ export default function LandingPage() {
           <p className="mt-4 text-navy-500">
             Replace scattered spreadsheets, email threads, and shared drives with a single structured workflow.
           </p>
-        </div>
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        </Reveal>
+        <Reveal className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" delay={0.08}>
           {features.map((f) => (
-            <div key={f.title} className="group rounded-2xl border border-navy-200/80 bg-white p-6 shadow-soft transition-all hover:-translate-y-1 hover:shadow-lift">
-              <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${f.tone}`}>
+            <div key={f.title} className="group rounded-2xl border border-navy-200/80 bg-white p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+              <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${f.tone} transition-transform duration-300 group-hover:scale-105`}>
                 <f.icon className="h-5 w-5" />
               </span>
               <h3 className="mt-4 text-base font-semibold text-navy-900">{f.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-navy-500">{f.desc}</p>
             </div>
           ))}
-        </div>
+        </Reveal>
       </section>
 
       <section id="workflow" className="bg-navy-950 py-20 sm:py-28">
         <div className="container-page">
-          <div className="mx-auto max-w-2xl text-center">
+          <Reveal className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-wider text-brand-400">A clear workflow</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Everyone knows what happens next
@@ -227,29 +228,29 @@ export default function LandingPage() {
             <p className="mt-4 text-navy-300">
               A guided lifecycle keeps students, supervisors, and coordinators aligned at every stage.
             </p>
-          </div>
-          <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          </Reveal>
+          <Reveal className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-4" delay={0.08}>
             {steps.map((s) => (
-              <div key={s.n} className="relative rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+              <div key={s.n} className="relative rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur transition-colors duration-300 hover:border-white/20 hover:bg-white/[0.08]">
                 <span className="font-display text-3xl font-extrabold text-brand-400/40">{s.n}</span>
                 <h3 className="mt-3 text-base font-semibold text-white">{s.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-navy-300">{s.desc}</p>
               </div>
             ))}
-          </div>
+          </Reveal>
         </div>
       </section>
 
       <section id="roles" className="container-page py-20 sm:py-28">
-        <div className="mx-auto max-w-2xl text-center">
+        <Reveal className="mx-auto max-w-2xl text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-brand-600">Built for every role</p>
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-navy-900 sm:text-4xl">
             Purposeful experiences, not one-size-fits-all
           </h2>
-        </div>
-        <div className="mt-14 grid gap-6 lg:grid-cols-3">
+        </Reveal>
+        <Reveal className="mt-14 grid gap-6 lg:grid-cols-3" delay={0.08}>
           {roles.map((r) => (
-            <div key={r.role} className="overflow-hidden rounded-2xl border border-navy-200/80 bg-white shadow-soft">
+            <div key={r.role} className="overflow-hidden rounded-2xl border border-navy-200/80 bg-white shadow-soft transition-shadow duration-300 hover:shadow-lift">
               <div className={`bg-gradient-to-br ${r.accent} p-6`}>
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
                   <r.icon className="h-5 w-5 text-white" />
@@ -265,11 +266,11 @@ export default function LandingPage() {
               </ul>
             </div>
           ))}
-        </div>
+        </Reveal>
       </section>
 
       <section className="bg-navy-50/60 py-20 sm:py-28">
-        <div className="container-page grid items-center gap-12 lg:grid-cols-2">
+        <Reveal className="container-page grid items-center gap-12 lg:grid-cols-2">
           <div>
             <Badge variant="danger"><Activity className="h-3.5 w-3.5" /> Flagship feature</Badge>
             <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-navy-900 sm:text-4xl">
@@ -316,11 +317,11 @@ export default function LandingPage() {
               <p className="mt-1.5 text-xs text-navy-600">Schedule a check-in with the supervisor and resubmit the corrected presentation.</p>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <section id="security" className="container-page py-20 sm:py-28">
-        <div className="grid items-start gap-12 lg:grid-cols-2">
+        <Reveal className="grid items-start gap-12 lg:grid-cols-2">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wider text-brand-600">Security by design</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-navy-900 sm:text-4xl">
@@ -346,11 +347,11 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <section className="container-page pb-24">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-700 via-indigo-700 to-navy-900 px-8 py-14 text-center shadow-glow sm:px-16">
+        <Reveal className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-700 via-indigo-700 to-navy-900 px-8 py-14 text-center shadow-glow sm:px-16">
           <div className="absolute inset-0 opacity-20 grid-mask" />
           <div className="relative">
             <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
@@ -364,7 +365,7 @@ export default function LandingPage() {
               <Link to="/login"><Button size="lg" variant="ghost" className="text-white hover:bg-white/10">Sign in to demo</Button></Link>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <footer className="border-t border-navy-100 bg-white">
@@ -401,7 +402,7 @@ export default function LandingPage() {
           </div>
           <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-navy-100 pt-6 sm:flex-row">
             <p className="text-xs text-navy-400">© {new Date().getFullYear()} FYP Manager. Demonstration project.</p>
-            <p className="text-xs text-navy-400">Built with React, TypeScript, Express & PostgreSQL</p>
+            <p className="text-xs text-navy-400">Built with React, TypeScript, Express & MongoDB</p>
           </div>
         </div>
       </footer>
