@@ -41,14 +41,21 @@ export function parseRepoUrl(value: unknown): string | null {
 }
 
 async function gh(path: string) {
-  const res = await fetch(`https://api.github.com${path}`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      // GitHub requires a User-Agent on API calls.
-      'User-Agent': 'FYP-Manager',
-    },
-    signal: AbortSignal.timeout(10_000),
-  })
+  let res: Response
+  try {
+    res = await fetch(`https://api.github.com${path}`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        // GitHub requires a User-Agent on API calls.
+        'User-Agent': 'FYP-Manager',
+      },
+      signal: AbortSignal.timeout(10_000),
+    })
+  } catch (err) {
+    // Network / DNS / abort failures must surface as a clean upstream error,
+    // not leak as an opaque 500 "Internal Server Error" to the client.
+    throw new AppError('GitHub API unreachable', 502)
+  }
   if (res.status === 404) throw new AppError('Repository not found (is it public?)', 404)
   if (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0') {
     throw new AppError('GitHub rate limit reached; try again in a few minutes', 429)
