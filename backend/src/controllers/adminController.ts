@@ -226,6 +226,13 @@ export const updateUser = asyncHandler(async (req: AuthRequest, res: Response) =
 })
 
 export const getUserMail = asyncHandler(async (_req: AuthRequest, res: Response) => {
+  // Undelivered codes and reset links expire quickly (OTP 5 min, reset 1 h), so
+  // drop stale rows instead of keeping plaintext credentials around forever.
+  await MailOutbox.deleteMany({
+    status: { $in: ['queued', 'failed'] },
+    createdAt: { $lt: new Date(Date.now() - 60 * 60 * 1000) },
+  }).catch(() => {})
+
   // Only messages that still need attention: successfully emailed messages
   // have their body cleared and are left out, so this page is a fallback relay
   // list rather than a log of everyone's signup codes.
@@ -279,6 +286,8 @@ export const deleteUser = asyncHandler(async (req: AuthRequest, res: Response) =
     await StudentProfile.deleteMany({ userId: user._id })
     await SupervisorProfile.deleteMany({ userId: user._id })
     await User.deleteOne({ _id: user._id })
+    // Don't leave undelivered codes/reset links behind for a deleted account.
+    await MailOutbox.deleteMany({ to: user.email }).catch(() => {})
     await writeAudit({ userId: req.user!.id, action: 'Purged user account', entityType: 'User', entityId: String(user._id), details: { title: fullName(user) } })
     return res.json({ success: true, message: 'User permanently removed' })
   }
