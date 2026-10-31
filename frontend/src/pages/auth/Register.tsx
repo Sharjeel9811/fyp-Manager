@@ -7,7 +7,7 @@ import { Mail, Lock, User, Building2, GraduationCap, Users, Check, ShieldCheck, 
 import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
-import { SuccessCheck, easeOut, popIn } from '@/components/motion/Reveal'
+import { SuccessCheck, Swap, popIn } from '@/components/motion/Reveal'
 import { cn } from '@/lib/utils'
 import { homeForRole, useAuth } from '@/context/AuthContext'
 
@@ -101,9 +101,9 @@ export default function Register() {
 
   return (
     <AuthLayout title={title} subtitle={subtitle}>
-      <AnimatePresence mode="wait" initial={false}>
-        {step === 'otp' && (
-          <motion.div key="otp" {...popIn}>
+      <Swap step={step}>
+        {step === 'otp' ? (
+          <div>
             <div className="mb-5 flex items-start gap-3 rounded-2xl border border-brand-200/70 bg-gradient-to-br from-brand-50 to-white p-4">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-glow">
                 <ShieldCheck className="h-4 w-4" />
@@ -170,11 +170,9 @@ export default function Register() {
                 Start over
               </button>
             </p>
-          </motion.div>
-        )}
-
-        {step === 'done' && (
-          <motion.div key="done" {...popIn} className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-7 text-center">
+          </div>
+        ) : step === 'done' ? (
+          <div {...popIn} className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-7 text-center">
             <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
               <SuccessCheck className="h-10 w-10 text-emerald-600" />
             </span>
@@ -188,17 +186,9 @@ export default function Register() {
                 className="h-full w-1/2 rounded-full bg-emerald-500"
               />
             </div>
-          </motion.div>
-        )}
-
-        {step === 'form' && (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3, ease: easeOut }}
-          >
+          </div>
+        ) : (
+          <div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-2 rounded-xl bg-navy-100 p-1">
                 {[
@@ -280,9 +270,9 @@ export default function Register() {
               Already registered?{' '}
               <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700">Sign in</Link>
             </p>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </Swap>
     </AuthLayout>
   )
 }

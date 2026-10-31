@@ -8,7 +8,7 @@ import {
 import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { SuccessCheck, easeOut, fadeUp, popIn } from '@/components/motion/Reveal'
+import { SuccessCheck, Swap } from '@/components/motion/Reveal'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 import { dispatchQueuedMail } from '@/lib/mail'
@@ -40,16 +40,9 @@ export function ForgotPassword() {
 
   return (
     <AuthLayout title="Reset your password" subtitle="Enter your account email and we'll send a secure reset link.">
-      <AnimatePresence mode="wait" initial={false}>
+      <Swap step={sent ? 'sent' : 'form'}>
         {sent ? (
-          <motion.div
-            key="sent"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3, ease: easeOut }}
-            className="space-y-4"
-          >
+          <div className="space-y-4">
             <div className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-7 text-center">
               <motion.span
                 initial={{ scale: 0.75, opacity: 0 }}
@@ -76,15 +69,9 @@ export function ForgotPassword() {
                 <Button variant="ghost" className="w-full">Back to sign in</Button>
               </Link>
             </div>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3, ease: easeOut }}
-          >
+          <div>
             <form onSubmit={handleSubmit} className="space-y-5">
               <Input
                 label="Email address"
@@ -114,9 +101,9 @@ export function ForgotPassword() {
                 {!loading && <>Send reset link <ArrowRight className="h-4 w-4" /></>}
               </Button>
             </form>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </Swap>
 
       {!sent && (
         <Link to="/login" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700">
@@ -205,9 +192,9 @@ export function ResetPassword() {
             : 'Make it strong and unique to your account.'
       }
     >
-      <AnimatePresence mode="wait" initial={false}>
+      <Swap step={state}>
         {state === 'invalid' && (
-          <motion.div key="invalid" {...popIn} className="space-y-4">
+          <div className="space-y-4">
             <div className="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50 to-white p-7 text-center">
               <motion.span
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -228,11 +215,11 @@ export function ResetPassword() {
             <Link to="/login" className="block text-center text-sm font-semibold text-brand-600 hover:text-brand-700">
               Back to sign in
             </Link>
-          </motion.div>
+          </div>
         )}
 
         {state === 'done' && (
-          <motion.div key="done" {...popIn} className="space-y-4">
+          <div className="space-y-4">
             <div className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-7 text-center">
               <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
                 <SuccessCheck className="h-10 w-10 text-emerald-600" />
@@ -246,18 +233,12 @@ export function ResetPassword() {
             <Link to="/login" className="block">
               <Button size="lg" className="w-full">Continue to sign in <ArrowRight className="h-4 w-4" /></Button>
             </Link>
-          </motion.div>
+          </div>
         )}
 
         {state === 'form' && (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3, ease: easeOut }}
-          >
-            <div className="mb-5 flex items-start gap-3 rounded-2xl border border-navy-200/80 bg-gradient-to-br from-brand-50 to-white p-4">
+          <div>
+            <div className="mb-5 flex items-start gap-3 rounded-2xl border border-navy-200/80 bg-gradient-to-b from-brand-50 to-white p-4">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-glow">
                 <KeyRound className="h-4 w-4" />
               </span>
@@ -421,9 +402,9 @@ export function ResetPassword() {
               Remembered it?{' '}
               <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700">Sign in instead</Link>
             </p>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </Swap>
     </AuthLayout>
   )
 }
@@ -447,17 +428,17 @@ export function VerifyEmail() {
       title={state === 'success' ? 'Email verified' : state === 'error' ? 'Verification failed' : 'Verify your email'}
       subtitle={state === 'success' ? 'Your account is active.' : 'One quick step to activate your FYP Manager account.'}
     >
-      <AnimatePresence mode="wait" initial={false}>
+      <Swap step={state === 'verifying' || state === 'idle' ? 'checking' : state === 'success' ? 'ok' : 'err'}>
         {state === 'verifying' || state === 'idle' ? (
-          <motion.div key="checking" {...fadeUp} className="flex flex-col items-center py-10 text-navy-500">
+          <div className="flex flex-col items-center py-10 text-navy-500">
             <span className="relative flex h-16 w-16 items-center justify-center">
               <span className="absolute inset-0 animate-ping rounded-full bg-brand-100" />
               <Loader2 className="relative h-8 w-8 animate-spin text-brand-600" />
             </span>
             <p className="mt-4 text-sm font-medium">Verifying your email…</p>
-          </motion.div>
+          </div>
         ) : state === 'success' ? (
-          <motion.div key="ok" {...popIn} className="space-y-4">
+          <div className="space-y-4">
             <div className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-7 text-center">
               <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
                 <SuccessCheck className="h-10 w-10 text-emerald-600" />
@@ -466,9 +447,9 @@ export function VerifyEmail() {
               <p className="mt-1 text-sm text-navy-600">Your account is active. You can sign in now.</p>
             </div>
             <Link to="/login" className="block"><Button size="lg" className="w-full">Go to sign in</Button></Link>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div key="err" {...popIn} className="space-y-4">
+          <div className="space-y-4">
             <div className="rounded-2xl border border-red-200 bg-gradient-to-b from-red-50 to-white p-7 text-center">
               <motion.span
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -481,9 +462,9 @@ export function VerifyEmail() {
               <p className="mt-1 text-sm text-navy-600">{message || 'The link is invalid or has expired.'}</p>
             </div>
             <Link to="/login" className="block"><Button variant="outline" className="w-full">Back to sign in</Button></Link>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </Swap>
     </AuthLayout>
   )
 }

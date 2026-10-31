@@ -25,6 +25,39 @@ export const popIn = {
   transition: { duration: 0.3, ease: easeOut },
 }
 
+/**
+ * Enter-only panel swap for multi-step flows.
+ *
+ * Each new `step` remounts the panel and fades it up; there is deliberately no
+ * exit animation, so the next step is mounted the instant state changes. An
+ * exit-gated swap (`AnimatePresence mode="wait"`) leaves the previous panel on
+ * screen whenever frames are not being produced — background tabs, occluded
+ * windows, some kiosk browsers — and the user is left staring at a form they
+ * already submitted.
+ */
+export function Swap({
+  step,
+  children,
+  className,
+}: {
+  step: string
+  children: React.ReactNode
+  className?: string
+}) {
+  const reduce = useReducedMotion()
+  return (
+    <motion.div
+      key={step}
+      className={className}
+      initial={reduce ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: easeOut }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
 /** Fade + rise when an element scrolls into view (once). */
 export function Reveal({
   children,
