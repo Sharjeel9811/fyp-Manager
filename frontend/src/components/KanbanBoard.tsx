@@ -149,10 +149,10 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [modal, setModal] = useState<{ mode: 'create' } | { mode: 'edit'; card: any } | null>(null)
 
-  const updateCard = useApiMutation((p: { cardId: string; body: any }) => api.patch(`/kanban/cards/${p.cardId}`, p.body))
-  const moveCard = useApiMutation((p: { cardId: string; body: any }) => api.patch(`/kanban/cards/${p.cardId}/move`, p.body))
-  const createCard = useApiMutation((body: any) => api.post(`/kanban/projects/${projectId}`, body))
-  const deleteCard = useApiMutation((cardId: string) => api.delete(`/kanban/cards/${cardId}`))
+  const updateCard = useApiMutation((p: { cardId: string; body: any }) => api.patch(`/kanban/cards/${p.cardId}`, p.body), [['kanban', projectId]])
+  const moveCard = useApiMutation((p: { cardId: string; body: any }) => api.patch(`/kanban/cards/${p.cardId}/move`, p.body), [['kanban', projectId]])
+  const createCard = useApiMutation((body: any) => api.post(`/kanban/projects/${projectId}`, body), [['kanban', projectId]])
+  const deleteCard = useApiMutation((cardId: string) => api.delete(`/kanban/cards/${cardId}`), [['kanban', projectId]])
 
   const cardsByColumn = useMemo(() => {
     const map: Record<string, BoardData['cards']> = {}
