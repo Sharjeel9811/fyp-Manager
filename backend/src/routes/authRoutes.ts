@@ -6,17 +6,14 @@ import { authenticate } from '../middleware/auth'
 const router = Router()
 
 /**
- * The global /api limiter (1000 / 15 min) is far too loose for credential
- * stuffing. This one only counts *failed* logins, so normal sign-ins never
- * consume the budget: 10 bad passwords per IP+account per 15 minutes.
- *
- * Keyed by IP + email so a burst of failures against one account (or one
- * tester on a shared campus NAT) cannot lock out every other account behind
- * the same address.
+ * Only *failed* logins count, so normal sign-ins never consume the budget.
+ * 100 bad passwords per IP+account per 15 minutes stops credential stuffing
+ * while being unreachable in practice: nobody mistypes a password that many
+ * times, and a shared campus NAT cannot lock an account out.
  */
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 100,
   skipSuccessfulRequests: true,
   keyGenerator: (req: any) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}`,
   standardHeaders: true,
@@ -27,6 +24,7 @@ const loginLimiter = rateLimit({
 router.post('/register', auth.register)
 router.post('/verify-otp', auth.verifyOtp)
 router.post('/resend-otp', auth.resendOtp)
+router.post('/dispatch-mail', auth.dispatchMail)
 router.post('/login', loginLimiter, auth.login)
 router.get('/verify-email/:token', auth.verifyEmail)
 router.post('/forgot-password', auth.forgotPassword)

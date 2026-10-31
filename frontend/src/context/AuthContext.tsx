@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api, { tokenStore } from '@/lib/api'
+import { dispatchQueuedMail } from '@/lib/mail'
 
 export type Role = 'STUDENT' | 'SUPERVISOR' | 'ADMIN'
 
@@ -91,6 +92,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (payload: Record<string, unknown>) => {
     const { data } = await api.post('/auth/register', payload)
+    // The account is created and the code queued; sending the email happens
+    // in the background so signup returns instantly.
+    dispatchQueuedMail(data)
     if (!data.token) {
       // Registration now stops at OTP verification; the session is issued
       // later via completeSession once the email code is confirmed.

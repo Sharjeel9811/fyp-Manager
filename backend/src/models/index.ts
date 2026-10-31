@@ -318,10 +318,10 @@ const ChatMessageSchema = new Schema(
 )
 
 /**
- * Outgoing mail queue. With no SMTP provider on the free tier the platform
- * delivers system mail (password resets, invites) by writing rows here; the
- * admin Mail page lists them so links can be handed to the recipient. If SMTP
- * credentials are ever added, a worker drains this collection for real.
+ * Outgoing mail queue. Every system message (signup OTP, password reset) is
+ * written here first, then delivered by SMTP from a follow-up request so the
+ * originating signup/reset never waits on the mail relay. Rows that could not
+ * be sent stay visible on the admin Mail page so staff can relay the code/link.
  */
 const MailOutboxSchema = new Schema(
   {
@@ -331,6 +331,13 @@ const MailOutboxSchema = new Schema(
     links: [{ type: String }],
     deliveredBy: { type: String, default: 'outbox' },
     consumedAt: Date,
+    // queued -> sending -> sent | failed
+    status: { type: String, enum: ['queued', 'sending', 'sent', 'failed'], default: 'queued', index: true },
+    sentAt: Date,
+    deliveryError: String,
+    attempts: { type: Number, default: 0 },
+    // One-time token returned to the client; required to trigger delivery.
+    dispatchToken: String,
   },
   opts
 )

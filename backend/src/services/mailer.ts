@@ -1,12 +1,22 @@
 /**
- * Mail delivery. Uses SMTP when credentials are configured (SMTP_HOST,
- * SMTP_PORT, SMTP_USER, SMTP_PASS, optional MAIL_FROM); otherwise system mail
- * (password resets, signup OTPs) is queued into the durable MailOutbox
- * collection, which the admin "Mail" page lists so staff can relay links.
+ * Mail delivery.
+ *
+ * Signup/reset must never wait on Gmail, so the pipeline is split in two:
+ *
+ *   1. `enqueueMail()` writes one MailOutbox row (single fast insert) and hands
+ *      back a one-time dispatch token. The HTTP request responds immediately.
+ *   2. `deliverMail()` performs the SMTP send and records the outcome. It runs
+ *      from a follow-up `POST /auth/dispatch-mail` request made by the client
+ *      right after the form submits, so the serverless function has its own
+ *      execution budget and the work cannot be frozen mid-send.
+ *
+ * If SMTP is missing or the send fails, the row stays in the outbox and the
+ * admin "Mail" page lists it so staff can relay the code/link manually.
  *
  * No new dependencies: nodemailer is already part of the backend.
  */
 import nodemailer, { type Transporter } from 'nodemailer'
+import { randomUUID } from 'crypto'
 import { MailOutbox } from '../models'
 
 export interface QueuedMail {
@@ -14,6 +24,12 @@ export interface QueuedMail {
   subject: string
   body: string
   links?: string[]
+}
+
+/** Handle returned to the caller so it can trigger delivery separately. */
+export interface MailHandle {
+  id: string
+  token: string
 }
 
 let transport: Transporter | null | undefined
@@ -41,12 +57,11 @@ function getTransport(): Transporter | null {
   transport = settings
     ? nodemailer.createTransport({
         ...settings,
-        // The deployment runs on a 10s serverless limit. SMTP must fail fast:
-        // a slow/unreachable relay has to fall back to the outbox, not hold the
-        // signup/reset request open until the platform kills it.
-        connectionTimeout: 3_500,
-        greetingTimeout: 3_500,
-        socketTimeout: 5_000,
+        // A slow relay must fail fast so the dispatch request can report the
+        // outbox fallback instead of hanging until the platform kills it.
+        connectionTimeout: 4_000,
+        greetingTimeout: 4_000,
+        socketTimeout: 6_000,
       })
     : null
   return transport
@@ -61,35 +76,102 @@ export function appName(): string {
   return process.env.APP_NAME || 'FYP Manager'
 }
 
-export async function queueMail({ to, subject, body, links = [] }: QueuedMail): Promise<boolean> {
+/**
+ * Persist a message for delivery. One insert, no network I/O — safe to await
+ * inside a request that must answer instantly.
+ */
+export async function enqueueMail({ to, subject, body, links = [] }: QueuedMail): Promise<MailHandle | null> {
+  try {
+    const token = randomUUID()
+    const doc: any = await MailOutbox.create({
+      to,
+      subject,
+      body,
+      links,
+      status: 'queued',
+      attempts: 0,
+      dispatchToken: token,
+    })
+    return { id: String(doc._id), token }
+  } catch (err) {
+    // Never block the primary flow on mail: the OTP/reset token is already
+    // persisted, so the user can request another message.
+    console.error('[mailer] enqueue failed:', (err as Error).message)
+    return null
+  }
+}
+
+/**
+ * Attempt delivery of one queued message. Idempotent: only the first caller
+ * claims the row, so a duplicated dispatch request cannot send twice.
+ */
+export async function deliverMail(id: string, token?: string): Promise<boolean> {
+  const match: Record<string, unknown> = { _id: id, attempts: { $lt: 3 } }
+  if (token) match.dispatchToken = token
+  // A row left in "sending" by a killed function becomes retryable after a
+  // minute instead of being stuck forever.
+  match.$or = [
+    { status: 'queued' },
+    { status: 'failed' },
+    { status: 'sending', updatedAt: { $lt: new Date(Date.now() - 60_000) } },
+  ]
+
+  let claim: any = null
+  try {
+    claim = await MailOutbox.findOneAndUpdate(
+      match,
+      { $set: { status: 'sending' }, $inc: { attempts: 1 } },
+      { new: true }
+    )
+  } catch (err) {
+    console.error('[mailer] claim failed:', (err as Error).message)
+    return false
+  }
+  if (!claim) return false
+
   const t = getTransport()
-  if (t) {
-    try {
-      // Hard cap the whole SMTP attempt so a stalled relay cannot exhaust the
-      // serverless function's execution budget.
-      await Promise.race([
-        t.sendMail({
-          from: process.env.MAIL_FROM || process.env.SMTP_USER || process.env.MAIL_USER,
-          to,
-          subject,
-          text: body,
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP attempt timed out')), 6_000)),
-      ])
-      return true
-    } catch (err) {
-      // Fall through to the outbox so the message isn't lost.
-      console.error('[mailer] SMTP send failed, queuing instead:', (err as Error).message)
-    }
+  if (!t) {
+    await MailOutbox.updateOne(
+      { _id: id },
+      { $set: { status: 'failed', deliveryError: 'SMTP is not configured — relay this message manually' } }
+    ).catch(() => {})
+    return false
   }
 
   try {
-    await MailOutbox.create({ to, subject, body, links })
-    return false
+    await Promise.race([
+      t.sendMail({
+        from: process.env.MAIL_FROM || process.env.SMTP_USER || process.env.MAIL_USER,
+        to: claim.to,
+        subject: claim.subject,
+        text: claim.body,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP attempt timed out')), 7_000)),
+    ])
+    // Drop the plaintext body/code once delivered: the recipient has it, and
+    // the credential should not linger in the database or the admin page.
+    await MailOutbox.updateOne(
+      { _id: id },
+      { $set: { status: 'sent', sentAt: new Date(), links: [] }, $unset: { body: '', dispatchToken: '' } }
+    ).catch(() => {})
+    return true
   } catch (err) {
-    // Never block the primary flow on mail: resets already persisted their
-    // token, so re-requesting generates a fresh one.
-    console.error('[mailer] queue failed:', (err as Error).message)
+    const message = (err as Error).message || 'SMTP send failed'
+    console.error('[mailer] SMTP send failed, keeping in outbox:', message)
+    await MailOutbox.updateOne(
+      { _id: id },
+      { $set: { status: 'failed', deliveryError: message.slice(0, 300) } }
+    ).catch(() => {})
     return false
   }
+}
+
+/**
+ * Enqueue and try to deliver right away. Used where latency doesn't matter
+ * (nothing currently) and by tests/tools.
+ */
+export async function queueMail(mail: QueuedMail): Promise<boolean> {
+  const handle = await enqueueMail(mail)
+  if (!handle) return false
+  return deliverMail(handle.id)
 }

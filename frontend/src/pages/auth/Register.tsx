@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '@/lib/api'
+import { dispatchQueuedMail } from '@/lib/mail'
 import { Mail, Lock, User, Building2, GraduationCap, Users, Check, ShieldCheck } from 'lucide-react'
 import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
@@ -80,6 +81,7 @@ export default function Register() {
     setResendMsg('')
     try {
       const { data } = await api.post('/auth/resend-otp', { email: otpEmail })
+      dispatchQueuedMail(data)
       setResendMsg(data.message || 'A new code has been sent')
     } catch (err: any) {
       setResendMsg(err.message || 'Could not resend — try again')

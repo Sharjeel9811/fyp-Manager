@@ -226,7 +226,13 @@ export const updateUser = asyncHandler(async (req: AuthRequest, res: Response) =
 })
 
 export const getUserMail = asyncHandler(async (_req: AuthRequest, res: Response) => {
-  const rows: any[] = await MailOutbox.find().sort({ createdAt: -1 }).limit(100).lean()
+  // Only messages that still need attention: successfully emailed messages
+  // have their body cleared and are left out, so this page is a fallback relay
+  // list rather than a log of everyone's signup codes.
+  const rows: any[] = await MailOutbox.find({ status: { $in: ['queued', 'failed'] } })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean()
   res.json({
     success: true,
     mail: rows.map((m) => ({
@@ -237,6 +243,8 @@ export const getUserMail = asyncHandler(async (_req: AuthRequest, res: Response)
       links: m.links || [],
       queuedAt: m.createdAt,
       consumed: !!m.consumedAt,
+      status: m.status || 'queued',
+      error: m.deliveryError || '',
     })),
   })
 })

@@ -5,6 +5,7 @@ import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import api from '@/lib/api'
+import { dispatchQueuedMail } from '@/lib/mail'
 
 export function ForgotPassword() {
   const [sent, setSent] = useState(false)
@@ -20,6 +21,7 @@ export function ForgotPassword() {
     setLoading(true)
     try {
       const { data } = await api.post('/auth/forgot-password', { email })
+      dispatchQueuedMail(data)
       setSentTo(email)
       setSentMsg(data.message || 'Reset link sent')
       setSent(true)

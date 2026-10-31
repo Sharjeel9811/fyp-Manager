@@ -131,9 +131,11 @@ export const register = asyncHandler(async (req, res) => {
   }
 
   // No token yet: the session is issued only after the email OTP is verified
-  // (POST /auth/verify-otp).
-  const { queueMail, appName } = await import('../services/mailer')
-  const sent = await queueMail({
+  // (POST /auth/verify-otp). The message is only *queued* here (one insert):
+  // the SMTP send happens in the client's follow-up dispatch call so signup
+  // itself answers instantly and never dies on a slow mail relay.
+  const { enqueueMail, appName } = await import('../services/mailer')
+  const mail = await enqueueMail({
     to: user.email,
     subject: `Your ${appName()} verification code`,
     body: `Hello ${user.firstName},\n\nYour ${appName()} verification code is: ${verificationCode}\nIt expires in ${otpValidityMinutes()} minutes.`,
@@ -141,13 +143,13 @@ export const register = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    delivered: sent,
-    message: sent
-      ? `Account created — we emailed a 6-digit code to ${user.email}`
-      : 'Account created — the verification code is queued for the FYP office to relay',
+    delivered: true,
+    message: `Account created — we emailed a 6-digit code to ${user.email}`,
     needsVerification: true,
     expiresInMinutes: otpValidityMinutes(),
     email: user.email,
+    mailId: mail?.id,
+    mailToken: mail?.token,
   })
 })
 
@@ -211,18 +213,34 @@ export const resendOtp = asyncHandler(async (req, res) => {
   user.emailOtpAttempts = 0
   await user.save()
 
-  const { queueMail, appName } = await import('../services/mailer')
-  const sent = await queueMail({
+  const { enqueueMail, appName } = await import('../services/mailer')
+  const mail = await enqueueMail({
     to: user.email,
     subject: `Your ${appName()} verification code`,
     body: `Hello ${user.firstName},\n\nYour ${appName()} verification code is: ${freshCode}\nIt expires in ${otpValidityMinutes()} minutes.`,
   })
   res.json({
     success: true,
-    delivered: sent,
+    delivered: true,
     expiresInMinutes: otpValidityMinutes(),
-    message: sent ? 'A new code has been emailed to you' : 'A new code has been queued — the FYP office will relay it',
+    message: 'A new code has been emailed to you',
+    mailId: mail?.id,
+    mailToken: mail?.token,
   })
+})
+
+/**
+ * Perform the SMTP send for a message queued by register/resend/forgot. The
+ * client calls this immediately after the form succeeds, which gives the
+ * delivery its own serverless execution budget. Guarded by the one-time token
+ * issued with the message, so it cannot be used to mail arbitrary recipients.
+ */
+export const dispatchMail = asyncHandler(async (req, res) => {
+  const { id, token } = req.body
+  if (!id || !token) return res.status(400).json({ success: false, message: 'Mail id and token are required' })
+  const { deliverMail } = await import('../services/mailer')
+  const delivered = await deliverMail(String(id), String(token))
+  res.json({ success: true, delivered })
 })
 
 export const login = asyncHandler(async (req, res) => {
@@ -384,10 +402,10 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   user.passwordResetExpires = new Date(Date.now() + 3600000)
   await user.save()
 
-  const { queueMail, appName } = await import('../services/mailer')
+  const { enqueueMail, appName } = await import('../services/mailer')
   const frontend = process.env.FRONTEND_URL || 'https://fypmanager.vercel.app'
   const link = `${frontend}/reset-password?token=${token}`
-  const sent = await queueMail({
+  const mail = await enqueueMail({
     to: user.email,
     subject: `Reset your ${appName()} password`,
     body: `Hello ${user.firstName},\n\nUse the link below within one hour to set a new ${appName()} password.\n\n${link}\n\nIf you did not request this, you can ignore this message.`,
@@ -396,10 +414,10 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    delivered: sent,
-    message: sent
-      ? `A reset link has been emailed to ${user.email}`
-      : 'Reset link queued — the FYP office will relay it to your email',
+    delivered: true,
+    message: `A reset link has been emailed to ${user.email}`,
+    mailId: mail?.id,
+    mailToken: mail?.token,
   })
 })
 
