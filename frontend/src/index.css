@@ -238,6 +238,19 @@ html.dark .text-navy-600 { color: rgb(203 213 225); }
 html.dark .text-navy-700 { color: rgb(226 232 240); }
 html.dark .text-navy-800 { color: rgb(241 245 249); }
 html.dark .text-navy-900 { color: rgb(248 250 252); }
+
+/* Selected sidebar nav item must keep a light label + tinted surface in dark
+   mode, otherwise the selected page title falls back to a dark-on-dark value. */
+html.dark aside a {
+  color: rgb(203 213 225);
+}
+html.dark aside a.bg-white\/10 {
+  background-color: rgb(255 255 255 / 0.08);
+  color: rgb(248 250 252);
+}
+html.dark header h2 {
+  color: rgb(248 250 252);
+}
 /* Skeleton shimmer, hover states, and the navy/brand palettes follow the variable swaps automatically. */
 
 /* touch: force dev re-transform */

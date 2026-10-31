@@ -7,7 +7,7 @@ import {
   MessageSquare, Award, Bell, UserCircle, FileSearch, ClipboardCheck, Activity,
   CalendarDays, BarChart3, Building2, GraduationCap, ShieldCheck, ScrollText, Mail,
   Settings, LogOut, Menu, X, ChevronDown, BookOpen, HelpCircle, CheckCheck, Search, Radio,
-  Copy, Sun, Moon, Kanban,
+  Copy, Sun, Moon, Kanban, Github,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth, type Role } from '@/context/AuthContext'
@@ -28,6 +28,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       title: 'My Project',
       items: [
         { label: 'Project Workspace', to: '/student/project', icon: FolderKanban },
+        { label: 'GitHub', to: '/student/project', icon: Github },
         { label: 'Task Board', to: '/student/kanban', icon: Kanban },
         { label: 'Proposal', to: '/student/proposal', icon: FileText },
         { label: 'Team', to: '/student/team', icon: Users },
