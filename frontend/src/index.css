@@ -223,6 +223,21 @@ html.dark .from-emerald-50 { --tw-gradient-from: rgb(6 78 59); }
 html.dark .from-amber-50 { --tw-gradient-from: rgb(120 53 15); }
 html.dark .from-red-50 { --tw-gradient-from: rgb(127 29 29); }
 html.dark .from-brand-50 { --tw-gradient-from: rgb(30 27 75); }
+
+/* Dark-theme text scale. The navy background tokens above were inverted for
+   dark surfaces, but the text tokens were left at light-theme values, so text
+   like sidebar nav items (`text-navy-300`) rendered dark-on-dark and headings
+   stayed unreadable. Force light text on dark surfaces. */
+html.dark .text-navy-50 { color: rgb(226 232 240); }
+html.dark .text-navy-100 { color: rgb(241 245 249); }
+html.dark .text-navy-200 { color: rgb(226 232 240); }
+html.dark .text-navy-300 { color: rgb(203 213 225); }
+html.dark .text-navy-400 { color: rgb(148 163 184); }
+html.dark .text-navy-500 { color: rgb(148 163 184); }
+html.dark .text-navy-600 { color: rgb(203 213 225); }
+html.dark .text-navy-700 { color: rgb(226 232 240); }
+html.dark .text-navy-800 { color: rgb(241 245 249); }
+html.dark .text-navy-900 { color: rgb(248 250 252); }
 /* Skeleton shimmer, hover states, and the navy/brand palettes follow the variable swaps automatically. */
 
 /* touch: force dev re-transform */
