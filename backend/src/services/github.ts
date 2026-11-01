@@ -88,11 +88,26 @@ export async function getProjectRepoFetch(projectId: string): Promise<{ repo: st
     return { repo, data: cached.data, fresh: false }
   }
 
-  const [repoInfo, commitsRaw, contributors]: any[] = await Promise.all([
-    gh(`/repos/${repo}`),
+  // Repository metadata is required; if GitHub is unreachable, serve the last
+  // good snapshot rather than blanking the whole feed.
+  let repoInfo: any
+  try {
+    repoInfo = await gh(`/repos/${repo}`)
+  } catch (err) {
+    const cached = githubCache.get(repo)
+    if (cached) return { repo, data: cached.data, fresh: false }
+    throw err
+  }
+
+  // Commits/contributors degrade gracefully: GitHub answers 409 for an empty
+  // repository ("Git Repository is empty") and can hiccup transiently — show
+  // the repo card with an empty list instead of failing the whole section.
+  const [commitsCall, contributorsCall] = await Promise.allSettled([
     gh(`/repos/${repo}/commits?per_page=100`),
     gh(`/repos/${repo}/contributors?per_page=10`), // counts commits per author
   ])
+  const commitsRaw: any[] = commitsCall.status === 'fulfilled' ? (commitsCall.value as any[]) : []
+  const contributors: any[] = contributorsCall.status === 'fulfilled' ? (contributorsCall.value as any[]) : []
 
   // Commit +/- are only on the detail endpoint; one extra call per commit is
   // wasteful, so stats come from the contributors endpoint instead.
