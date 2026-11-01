@@ -22,7 +22,7 @@ import { AppError } from '../middleware/errorHandler'
 const COMMITS_TTL_MS = 90 * 1000
 const META_TTL_MS = 20 * 60 * 1000
 
-type RepoRaw = { repoInfo: any; contributors: any[]; commits: any[] }
+type RepoRaw = { repoInfo: any; contributors: any[]; commits: any[]; empty: boolean }
 
 const githubCache = new Map<string, { data: any; raw: RepoRaw; commitsAt: number; metaAt: number }>()
 
@@ -127,6 +127,10 @@ function buildFeed(repo: string, raw: RepoRaw) {
     pushedAt: repoInfo.pushed_at || null,
     commits,
     activity,
+    // A repo with no refs yet: GitHub answers 409 on /commits and reports
+    // size 0. The UI explains how to push a first commit instead of drawing a
+    // chart of zeros that looks like a bug.
+    empty: !!raw.empty,
     contributors: (contributors as any[]).map((u) => ({
       login: u.login,
       commits: u.contributions,
@@ -181,11 +185,18 @@ export async function getProjectRepoFetch(
   // Commits: GitHub answers 409 for an empty repository ("Git Repository is
   // empty") and can hiccup transiently — fall back to the last snapshot (or an
   // empty list for a brand-new repo) rather than failing the whole section.
-  const commits = await gh(`/repos/${repo}/commits?per_page=100`).catch(() =>
-    cached ? cached.raw.commits : []
-  )
+  // The 409 (or size 0) is remembered so the UI can say "push your first
+  // commit" instead of charting zeros.
+  let commits: any[]
+  let empty = false
+  try {
+    commits = (await gh(`/repos/${repo}/commits?per_page=100`)) as any[]
+  } catch (err: any) {
+    empty = /\(409\)/.test(String(err?.message || '')) || Number(repoInfo?.size ?? -1) === 0
+    commits = cached ? cached.raw.commits : []
+  }
 
-  const raw: RepoRaw = { repoInfo, contributors, commits: commits as any[] }
+  const raw: RepoRaw = { repoInfo, contributors, commits, empty }
   const data = buildFeed(repo, raw)
   githubCache.set(repo, { data, raw, commitsAt: now, metaAt: cached && metaFresh ? cached.metaAt : now })
   return { repo, data, fresh: true }

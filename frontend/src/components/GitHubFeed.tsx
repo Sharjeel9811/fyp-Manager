@@ -314,63 +314,89 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
         </div>
         <div className="rounded-xl bg-navy-50 px-3 py-2.5">
           <p className="text-xs text-navy-400">Last push</p>
-          <p className="mt-0.5 font-semibold text-navy-900">{feed.pushedAt ? relativeTime(new Date(feed.pushedAt)) : '—'}</p>
+          <p className="mt-0.5 font-semibold text-navy-900">
+            {!feed.empty && feed.pushedAt ? relativeTime(new Date(feed.pushedAt)) : '—'}
+          </p>
         </div>
       </div>
 
-      {activity.length > 0 && (
-        <div className="mt-5 rounded-xl border border-navy-100 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Commit activity · last 14 days</p>
-            <Badge variant="neutral">{activity.reduce((n, a) => n + a.commits, 0)} commits</Badge>
-          </div>
-          <div className="mt-3 h-40">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={activity}>
-                <XAxis dataKey="date" tickFormatter={(v: string) => String(v).slice(5)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
-                <Tooltip cursor={{ fill: 'rgba(99,102,241,0.08)' }} />
-                <Bar dataKey="commits" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={22} />
-              </BarChart>
-            </ResponsiveContainer>
+      {feed.empty ? (
+        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-navy-900">This repository is empty</p>
+              <p className="mt-1 text-sm text-navy-600">
+                GitHub reports <span className="font-mono text-xs">{feed.repo}</span> with no commits on{' '}
+                <span className="font-semibold">{feed.defaultBranch}</span> yet, so there is nothing to chart. Push your
+                first commit and it appears here within a minute.
+              </p>
+              <pre className="mt-3 overflow-x-auto rounded-lg bg-black/5 p-3 text-xs leading-relaxed text-navy-800">{`git init
+git add .
+git commit -m "Initial commit"
+git branch -M ${feed.defaultBranch}
+git remote add origin ${feed.url}.git
+git push -u origin ${feed.defaultBranch}`}</pre>
+            </div>
           </div>
         </div>
+      ) : (
+        <>
+          {activity.length > 0 && (
+            <div className="mt-5 rounded-xl border border-navy-100 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Commit activity · last 14 days</p>
+                <Badge variant="neutral">{activity.reduce((n, a) => n + a.commits, 0)} commits</Badge>
+              </div>
+              <div className="mt-3 h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={activity}>
+                    <XAxis dataKey="date" tickFormatter={(v: string) => String(v).slice(5)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
+                    <Tooltip cursor={{ fill: 'rgba(99,102,241,0.08)' }} />
+                    <Bar dataKey="commits" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Latest commits</p>
+              <ol className="mt-2 space-y-2.5">
+                {commits.map((c) => (
+                  <li key={c.sha} className="flex items-start gap-3 rounded-xl border border-navy-100 px-3.5 py-2.5">
+                    <span className="mt-0.5 rounded-md bg-navy-100 px-1.5 py-0.5 font-mono text-[11px] text-navy-600">{c.sha}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-navy-800">{c.message}</span>
+                      <span className="text-xs text-navy-400">
+                        {c.author} · {c.date ? fmtDateTime(c.date) : ''}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+                {commits.length === 0 && <li className="text-sm text-navy-400">No commits returned yet.</li>}
+              </ol>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Contributions</p>
+              <ul className="mt-2 space-y-2">
+                {contributors.map((u: any) => (
+                  <li key={u.login} className="flex items-center justify-between rounded-xl border border-navy-100 px-3 py-2">
+                    <span className="flex items-center gap-2 text-sm text-navy-700">
+                      <UserRound className="h-4 w-4 text-navy-400" />
+                      {u.login}
+                    </span>
+                    <Badge variant="neutral">{u.commits} commits</Badge>
+                  </li>
+                ))}
+                {contributors.length === 0 && <li className="text-sm text-navy-400">No contributor data yet.</li>}
+              </ul>
+            </div>
+          </div>
+        </>
       )}
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Latest commits</p>
-          <ol className="mt-2 space-y-2.5">
-            {commits.map((c) => (
-              <li key={c.sha} className="flex items-start gap-3 rounded-xl border border-navy-100 px-3.5 py-2.5">
-                <span className="mt-0.5 rounded-md bg-navy-100 px-1.5 py-0.5 font-mono text-[11px] text-navy-600">{c.sha}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-navy-800">{c.message}</span>
-                  <span className="text-xs text-navy-400">
-                    {c.author} · {c.date ? fmtDateTime(c.date) : ''}
-                  </span>
-                </span>
-              </li>
-            ))}
-            {commits.length === 0 && <li className="text-sm text-navy-400">No commits returned yet.</li>}
-          </ol>
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Contributions</p>
-          <ul className="mt-2 space-y-2">
-            {contributors.map((u: any) => (
-              <li key={u.login} className="flex items-center justify-between rounded-xl border border-navy-100 px-3 py-2">
-                <span className="flex items-center gap-2 text-sm text-navy-700">
-                  <UserRound className="h-4 w-4 text-navy-400" />
-                  {u.login}
-                </span>
-                <Badge variant="neutral">{u.commits} commits</Badge>
-              </li>
-            ))}
-            {contributors.length === 0 && <li className="text-sm text-navy-400">No contributor data yet.</li>}
-          </ul>
-        </div>
-      </div>
       {publishOpen && <PublishModal projectId={projectId} onClose={() => setPublishOpen(false)} />}
     </Card>
   )
