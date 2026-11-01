@@ -20,7 +20,7 @@ import mockDefenseRoutes from './routes/mockDefenseRoutes'
 import kanbanRoutes from './routes/kanbanRoutes'
 import { errorHandler } from './middleware/errorHandler'
 import { sanitizeInput } from './middleware/sanitize'
-import { connectDB } from './config/database'
+import { ensureDB } from './config/database'
 import { initRealtime, allowedOrigins } from './services/realtime'
 
 const app = express()
@@ -59,6 +59,25 @@ app.use(
 )
 
 app.get('/', (_req, res) => res.json({ service: 'FYP Manager API', version: '1.0.0' }))
+
+/**
+ * Re-open a dropped database connection before touching any model.
+ *
+ * Serverless sandboxes are reused after idle periods and Atlas closes idle
+ * connections; without this, Mongoose buffers the query until the request
+ * times out and the client hangs on a spinner. Health stays exempt so
+ * monitoring can still reach it (and its check triggers a reconnect).
+ */
+app.use(async (req, res, next) => {
+  if (/(^|\/)health\/?$/.test(req.path)) return next()
+  try {
+    await ensureDB()
+    next()
+  } catch {
+    res.status(503).json({ success: false, message: 'Database unavailable, please retry', retryable: true })
+  }
+})
+
 app.use('/health', healthRoutes)
 app.use('/api/v1/health', healthRoutes)
 app.use('/api/v1/auth', authRoutes)
@@ -77,7 +96,7 @@ app.use(errorHandler)
 
 async function start() {
   try {
-    await connectDB()
+    await ensureDB()
     if (!process.env.VERCEL) {
       // Only a real Node host (local dev / Render) opens a listening socket.
       // On Vercel the function never listens: Fluid compute invokes the
