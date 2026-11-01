@@ -28,7 +28,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       title: 'My Project',
       items: [
         { label: 'Project Workspace', to: '/student/project', icon: FolderKanban },
-        { label: 'GitHub', to: '/student/project', icon: Github },
+        { label: 'GitHub', to: '/student/github', icon: Github },
         { label: 'Task Board', to: '/student/kanban', icon: Kanban },
         { label: 'Proposal', to: '/student/proposal', icon: FileText },
         { label: 'Team', to: '/student/team', icon: Users },
