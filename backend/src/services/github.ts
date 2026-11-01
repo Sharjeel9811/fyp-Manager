@@ -11,9 +11,20 @@ import { AppError } from '../middleware/errorHandler'
  * SupervisorAssignment, mirroring the realtime room rules.
  */
 
-const CACHE_TTL_MS = 5 * 60 * 1000
+/**
+ * Two-tier freshness:
+ *  - commits refresh quickly (90s) so a push shows up on the site within ~1–2
+ *    minutes;
+ *  - repo metadata + contributors refresh slowly (20 min) to stay well inside
+ *    GitHub's unauthenticated 60 req/hour budget.
+ * A user-triggered refresh (`{ force: true }`) skips both tiers.
+ */
+const COMMITS_TTL_MS = 90 * 1000
+const META_TTL_MS = 20 * 60 * 1000
 
-const githubCache = new Map<string, { data: any; fetchedAt: number; fresh: boolean }>()
+type RepoRaw = { repoInfo: any; contributors: any[]; commits: any[] }
+
+const githubCache = new Map<string, { data: any; raw: RepoRaw; commitsAt: number; metaAt: number }>()
 
 /**
  * Accepts either a github.com URL ("https://github.com/owner/repo", optional
@@ -74,40 +85,12 @@ export interface CommitSummary {
 }
 
 /**
- * Fresh commits since `since` (or all cached follow-ups); `fresh` tells the
- * caller whether live data or the 5-minute cache answered.
+ * Build the feed payload from raw GitHub responses. Kept separate from the
+ * fetch so the commit list can be rebuilt on every (90s) commits refresh
+ * without re-downloading repo metadata.
  */
-export async function getProjectRepoFetch(projectId: string): Promise<{ repo: string | null; data: any | null; fresh: boolean }> {
-  const project: any = await Project.findById(projectId).select('githubRepo').lean()
-  if (!project) throw new AppError('Project not found', 404)
-  const repo = parseRepoUrl(project.githubRepo)
-  if (!repo) return { repo: null, data: null, fresh: false }
-
-  const cached = githubCache.get(repo)
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return { repo, data: cached.data, fresh: false }
-  }
-
-  // Repository metadata is required; if GitHub is unreachable, serve the last
-  // good snapshot rather than blanking the whole feed.
-  let repoInfo: any
-  try {
-    repoInfo = await gh(`/repos/${repo}`)
-  } catch (err) {
-    const cached = githubCache.get(repo)
-    if (cached) return { repo, data: cached.data, fresh: false }
-    throw err
-  }
-
-  // Commits/contributors degrade gracefully: GitHub answers 409 for an empty
-  // repository ("Git Repository is empty") and can hiccup transiently — show
-  // the repo card with an empty list instead of failing the whole section.
-  const [commitsCall, contributorsCall] = await Promise.allSettled([
-    gh(`/repos/${repo}/commits?per_page=100`),
-    gh(`/repos/${repo}/contributors?per_page=10`), // counts commits per author
-  ])
-  const commitsRaw: any[] = commitsCall.status === 'fulfilled' ? (commitsCall.value as any[]) : []
-  const contributors: any[] = contributorsCall.status === 'fulfilled' ? (contributorsCall.value as any[]) : []
+function buildFeed(repo: string, raw: RepoRaw) {
+  const { repoInfo, contributors, commits: commitsRaw } = raw
 
   // Commit +/- are only on the detail endpoint; one extra call per commit is
   // wasteful, so stats come from the contributors endpoint instead.
@@ -134,7 +117,7 @@ export async function getProjectRepoFetch(projectId: string): Promise<{ repo: st
     activity.push({ date: day, commits: buckets.get(day) || 0 })
   }
 
-  const data = {
+  return {
     repo,
     url: `https://github.com/${repo}`,
     description: repoInfo.description || '',
@@ -151,8 +134,60 @@ export async function getProjectRepoFetch(projectId: string): Promise<{ repo: st
     })),
     lastFetch: new Date().toISOString(),
   }
+}
 
-  githubCache.set(repo, { data, fetchedAt: Date.now(), fresh: true })
+/**
+ * Fetch the contribution feed for a project's linked repository.
+ *
+ * Commits are the hot path: they are re-fetched every 90 seconds (or whenever
+ * a viewer forces a refresh), so a push to the connected repo appears on the
+ * website within a minute or two. Repo metadata/contributors are cached much
+ * longer to protect GitHub's unauthenticated rate limit. Any upstream failure
+ * falls back to the last good snapshot instead of erroring.
+ */
+export async function getProjectRepoFetch(
+  projectId: string,
+  opts: { force?: boolean } = {}
+): Promise<{ repo: string | null; data: any | null; fresh: boolean }> {
+  const project: any = await Project.findById(projectId).select('githubRepo').lean()
+  if (!project) throw new AppError('Project not found', 404)
+  const repo = parseRepoUrl(project.githubRepo)
+  if (!repo) return { repo: null, data: null, fresh: false }
+
+  const cached = githubCache.get(repo)
+  const now = Date.now()
+  const metaFresh = !!cached && now - cached.metaAt < META_TTL_MS
+  const commitsFresh = !!cached && !opts.force && now - cached.commitsAt < COMMITS_TTL_MS
+  if (cached && metaFresh && commitsFresh) return { repo, data: cached.data, fresh: false }
+
+  // Metadata: reuse the cached copy while it is still fresh; otherwise fetch.
+  let repoInfo: any
+  let contributors: any[]
+  if (cached && metaFresh) {
+    repoInfo = cached.raw.repoInfo
+    contributors = cached.raw.contributors
+  } else {
+    try {
+      repoInfo = await gh(`/repos/${repo}`)
+    } catch (err) {
+      if (cached) return { repo, data: cached.data, fresh: false }
+      throw err
+    }
+    contributors = (await gh(`/repos/${repo}/contributors?per_page=10`).catch(() =>
+      cached ? cached.raw.contributors : []
+    )) as any[]
+  }
+
+  // Commits: GitHub answers 409 for an empty repository ("Git Repository is
+  // empty") and can hiccup transiently — fall back to the last snapshot (or an
+  // empty list for a brand-new repo) rather than failing the whole section.
+  const commits = await gh(`/repos/${repo}/commits?per_page=100`).catch(() =>
+    cached ? cached.raw.commits : []
+  )
+
+  const raw: RepoRaw = { repoInfo, contributors, commits: commits as any[] }
+  const data = buildFeed(repo, raw)
+  githubCache.set(repo, { data, raw, commitsAt: now, metaAt: cached && metaFresh ? cached.metaAt : now })
   return { repo, data, fresh: true }
 }
 

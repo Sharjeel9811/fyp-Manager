@@ -14,8 +14,11 @@ import api from '@/lib/api'
 
 /**
  * Contribution feed for the project's linked public GitHub repository.
- * Data comes from the backend's 5-minute cache in front of api.github.com,
- * so opening this page never costs the team rate-limit budget per request.
+ *
+ * Commits are re-polled every 60s here and cached for only 90s server-side, so
+ * a push to the connected repo shows up within a minute or two. Repo metadata
+ * is cached much longer server-side to protect GitHub's rate limit. The
+ * Refresh button forces a fresh fetch, bypassing both caches.
  */
 
 const tokenInputClass =
@@ -166,10 +169,27 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
     `/github/projects/${projectId}`,
     { refetchInterval: 60_000 }
   )
+  const queryClient = useQueryClient()
 
   const [repoUrl, setRepoUrl] = useState('')
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null)
   const [publishOpen, setPublishOpen] = useState(false)
+  const [forcing, setForcing] = useState(false)
+
+  /** Bypass the backend cache so a just-pushed commit appears right away. */
+  const forceRefresh = async () => {
+    if (forcing) return
+    setForcing(true)
+    try {
+      const res = await api.get(`/github/projects/${projectId}?refresh=1`)
+      queryClient.setQueryData(['github', projectId], res.data)
+    } catch {
+      // Keep the existing error surface: a normal refetch will report it.
+      await refetch()
+    } finally {
+      setForcing(false)
+    }
+  }
 
   const linkRepo = useApiMutation(
     (repoUrl: string) => api.put('/student/project/repo', { repoUrl: repoUrl.trim() }),
@@ -204,7 +224,12 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
   if (error) {
     return (
       <Card className="p-6">
-        <p className="text-sm text-red-600">{(error as Error).message}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-red-600">{(error as Error).message}</p>
+          <Button size="sm" variant="outline" loading={forcing} onClick={forceRefresh}>
+            <RefreshCw className="h-4 w-4" /> Try again
+          </Button>
+        </div>
       </Card>
     )
   }
@@ -253,14 +278,14 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
             <Badge variant="brand">
               <Github className="h-3.5 w-3.5" /> {feed.repo}
             </Badge>
-            {feed.fresh ? <Badge variant="success">Live fetch</Badge> : <Badge variant="neutral">Cached 5 min</Badge>}
+            {data?.fresh ? <Badge variant="success">Live fetch</Badge> : <Badge variant="neutral">Auto-refresh · 90s</Badge>}
           </div>
           {feed.description ? (
             <p className="mt-2 max-w-xl truncate text-sm text-navy-500">{feed.description}</p>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" loading={isFetching} onClick={() => refetch()}>
+          <Button size="sm" variant="outline" loading={forcing || (isFetching && !forcing)} onClick={forceRefresh}>
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
           <Button size="sm" variant="outline" onClick={() => setPublishOpen(true)}>

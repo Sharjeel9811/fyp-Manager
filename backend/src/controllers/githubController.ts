@@ -8,7 +8,11 @@ export const getFeed = asyncHandler(async (req: AuthRequest, res: Response) => {
   const allowed = await canViewProject(req.user!.id, req.user!.role, req.params.projectId)
   if (!allowed) return res.status(403).json({ success: false, message: 'You do not have access to this repository' })
 
-  const { repo, data, fresh } = await getProjectRepoFetch(req.params.projectId)
+  // `?refresh=1` (used by the Refresh button) bypasses both cache tiers so a
+  // just-pushed commit is visible immediately instead of after the 90s TTL.
+  const { repo, data, fresh } = await getProjectRepoFetch(req.params.projectId, {
+    force: String(req.query.refresh || '') === '1',
+  })
   if (!repo) {
     return res.json({ success: true, repo: null, feed: null, fresh: false, message: 'The team has not linked a repository yet' })
   }
