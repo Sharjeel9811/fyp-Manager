@@ -387,6 +387,21 @@ export const updateRepo = asyncHandler(async (req: AuthRequest, res: Response) =
   const ctx = await getStudentContext(req.user!.id)
   if (!ctx || !ctx.project) return res.status(404).json({ success: false, message: 'No project found' })
 
+  // Explicit unlink: clears the link so the setup form (link or publish) comes
+  // back. Requires `clear: true` so an empty body can never wipe it by accident.
+  if (req.body?.clear === true) {
+    await Project.updateOne({ _id: ctx.project._id }, { githubRepo: null })
+    await writeAudit({
+      userId: req.user!.id,
+      projectId: String(ctx.project._id),
+      action: 'Unlinked GitHub repository',
+      entityType: 'Project',
+      entityId: String(ctx.project._id),
+      details: { title: ctx.project.title, repo: ctx.project.githubRepo || null },
+    })
+    return res.json({ success: true, message: 'Repository unlinked', githubRepo: null })
+  }
+
   const { parseRepoUrl } = await import('../services/github')
   const repo = parseRepoUrl(req.body?.repoUrl)
   if (!repo) {

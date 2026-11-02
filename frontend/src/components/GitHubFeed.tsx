@@ -163,6 +163,106 @@ function PublishModal({
   )
 }
 
+/**
+ * Change / remove the linked GitHub repository. Same endpoint as the setup
+ * form's Link button, so an existing link can simply be re-pointed.
+ */
+function RepoLinkModal({
+  projectId,
+  currentRepo,
+  onClose,
+}: {
+  projectId: string
+  currentRepo: string
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [repoUrl, setRepoUrl] = useState(`https://github.com/${currentRepo}`)
+  const [result, setResult] = useState<{ text: string; error?: boolean } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    const url = repoUrl.trim()
+    if (!url) {
+      setResult({ text: 'Enter a GitHub repository such as https://github.com/owner/repo', error: true })
+      return
+    }
+    setBusy(true)
+    setResult(null)
+    try {
+      const res = await api.put('/student/project/repo', { repoUrl: url })
+      queryClient.invalidateQueries({ queryKey: ['github', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['github-read-preset', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['student', 'project'] })
+      setResult({ text: res.data?.message || `Repository ${res.data?.githubRepo || url} linked` })
+    } catch (err: any) {
+      setResult({ text: err?.message || 'Could not link that repository', error: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async () => {
+    setBusy(true)
+    setResult(null)
+    try {
+      const res = await api.put('/student/project/repo', { clear: true })
+      queryClient.invalidateQueries({ queryKey: ['github', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['github-read-preset', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['student', 'project'] })
+      setResult({ text: res.data?.message || 'Repository unlinked' })
+    } catch (err: any) {
+      setResult({ text: err?.message || 'Could not remove that link', error: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-navy-900/40 backdrop-blur-sm" onClick={onClose} />
+      <Card className="relative z-10 w-full max-w-md p-6">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-navy-900">
+            <Link2 className="h-4 w-4" /> {currentRepo ? 'Change repository' : 'Link repository'}
+          </h3>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-navy-400 hover:bg-navy-100" aria-label="Close">
+            ✕
+          </button>
+        </div>
+
+        {result ? (
+          <div className="mt-4 space-y-3">
+            <p className={cn('text-sm font-medium', result.error ? 'text-red-600' : 'text-emerald-700')}>{result.text}</p>
+            <div className="flex justify-end pt-1">
+              <Button onClick={onClose}>{result.error ? 'Close' : 'Done'}</Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="mt-4 block">
+              <span className="mb-1.5 block text-sm font-medium text-navy-700">GitHub repository</span>
+              <Input value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://github.com/owner/repo" />
+              <span className="mt-1 block text-[11px] text-navy-400">The team is currently linked to {currentRepo}.</span>
+            </label>
+            <div className="mt-5 flex items-center justify-between gap-2">
+              <Button variant="outline" onClick={remove} loading={busy} disabled={!currentRepo}>
+                Remove link
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={onClose}>Cancel</Button>
+                <Button onClick={save} loading={busy} disabled={!repoUrl.trim()}>
+                  <Link2 className="h-4 w-4" /> Save
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </Card>
+    </div>
+  )
+}
+
 export function GitHubFeed({ projectId }: { projectId: string }) {
   const { data, isLoading, error, refetch, isFetching } = useApiQuery<any>(
     ['github', projectId],
@@ -174,6 +274,7 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
   const [repoUrl, setRepoUrl] = useState('')
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null)
   const [publishOpen, setPublishOpen] = useState(false)
+  const [repoLinkOpen, setRepoLinkOpen] = useState(false)
   const [forcing, setForcing] = useState(false)
 
   /** Bypass the backend cache so a just-pushed commit appears right away. */
@@ -288,6 +389,9 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
           <Button size="sm" variant="outline" loading={forcing || (isFetching && !forcing)} onClick={forceRefresh}>
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setRepoLinkOpen(true)}>
+            <Link2 className="h-4 w-4" /> Change repo
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setPublishOpen(true)}>
             <UploadCloud className="h-4 w-4" /> Re-publish docs
           </Button>
@@ -398,6 +502,9 @@ git push -u origin ${feed.defaultBranch}`}</pre>
         </>
       )}
       {publishOpen && <PublishModal projectId={projectId} onClose={() => setPublishOpen(false)} />}
+      {repoLinkOpen && (
+        <RepoLinkModal projectId={projectId} currentRepo={feed.repo} onClose={() => setRepoLinkOpen(false)} />
+      )}
     </Card>
   )
 }
