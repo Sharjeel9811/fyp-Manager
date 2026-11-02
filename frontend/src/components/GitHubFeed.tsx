@@ -441,6 +441,16 @@ git commit -m "Initial commit"
 git branch -M ${feed.defaultBranch}
 git remote add origin ${feed.url}.git
 git push -u origin ${feed.defaultBranch}`}</pre>
+              <p className="mt-3 text-xs text-navy-600">
+                Already pushed somewhere else?{' '}
+                <button
+                  type="button"
+                  onClick={() => setRepoLinkOpen(true)}
+                  className="font-semibold text-brand-600 hover:text-brand-700"
+                >
+                  Change the linked repository
+                </button>
+              </p>
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ import { AuthLayout } from '@/components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { SuccessCheck, Swap, popIn } from '@/components/motion/Reveal'
+import { PasswordStrength, passwordRules } from '@/components/ui/PasswordStrength'
 import { cn } from '@/lib/utils'
 import { homeForRole, useAuth } from '@/context/AuthContext'
 
@@ -25,10 +26,22 @@ export default function Register() {
   const [otpCode, setOtpCode] = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
   const [resendMsg, setResendMsg] = useState('')
+  // Controlled so the strength meter can score what the user is typing.
+  const [password, setPassword] = useState('')
+  const [capsLock, setCapsLock] = useState(false)
+
+  const watchCaps = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    setCapsLock(e.getModifierState?.('CapsLock') ?? false)
+  }
+  const passwordOk = passwordRules(password).slice(0, 3).every((r) => r.ok)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
+    if (!passwordOk) {
+      setError('Use at least 8 characters, including a letter and a number.')
+      return
+    }
     const formEl = e.currentTarget
     const form = new FormData(formEl)
     const payload = {
@@ -237,7 +250,22 @@ export default function Register() {
                 <option>Data Science</option>
                 <option>Cybersecurity</option>
               </Select>
-              <Input label="Password" type="password" name="password" autoComplete="new-password" placeholder="At least 8 characters with letters and numbers" icon={<Lock className="h-4 w-4" />} required minLength={8} />
+              <Input
+                label="Password"
+                type="password"
+                name="password"
+                autoComplete="new-password"
+                placeholder="At least 8 characters with letters and numbers"
+                icon={<Lock className="h-4 w-4" />}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={watchCaps}
+                onKeyUp={watchCaps}
+                onBlur={() => setCapsLock(false)}
+                required
+                minLength={8}
+              />
+              <PasswordStrength password={password} capsLock={capsLock} />
               <p className="-mt-1 flex items-center gap-1.5 text-xs text-navy-400">
                 <Building2 className="h-3.5 w-3.5" /> Use your official university email address.
               </p>

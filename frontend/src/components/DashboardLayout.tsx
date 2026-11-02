@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -123,6 +123,8 @@ export function DashboardLayout({ role }: { role: Role }) {
   const [userMenu, setUserMenu] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+  const userRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -154,6 +156,29 @@ export function DashboardLayout({ role }: { role: Role }) {
     setMobileOpen(false)
   }, [location.pathname])
 
+  /**
+   * Click-outside / Escape for the header popovers.
+   *
+   * A full-screen backdrop div cannot be used here: the header sets
+   * `backdrop-blur`, which makes it the containing block for `position: fixed`
+   * children, so the backdrop only covered the 64px header strip and clicking
+   * the page body never closed the menu. A document listener always works.
+   */
+  useEffect(() => {
+    if (!notifOpen && !userMenu) return
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+      if (notifOpen && notifRef.current && !notifRef.current.contains(target)) setNotifOpen(false)
+      if (userMenu && userRef.current && !userRef.current.contains(target)) setUserMenu(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+    }
+  }, [notifOpen, userMenu])
+
   const { data } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => (await api.get('/notifications')).data,
@@ -170,6 +195,20 @@ export function DashboardLayout({ role }: { role: Role }) {
     mutationFn: () => api.patch('/notifications/read-all'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   })
+  // Opening the bell clears the badge for the notifications actually shown.
+  const markShownRead = useMutation({
+    mutationFn: (ids: string[]) => api.patch('/notifications/read', { ids }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+
+  const toggleNotifications = () => {
+    const next = !notifOpen
+    setNotifOpen(next)
+    setUserMenu(false)
+    if (!next) return
+    const shownUnread = notifications.filter((n) => n.unread).slice(0, 6).map((n) => n.id)
+    if (shownUnread.length) markShownRead.mutate(shownUnread)
+  }
 
   const allItems = groups.flatMap((g) => g.items)
   const current = allItems.find((i) => location.pathname.startsWith(i.to))
@@ -322,9 +361,9 @@ export function DashboardLayout({ role }: { role: Role }) {
               {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
 
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <button
-                onClick={() => { setNotifOpen((v) => !v); setUserMenu(false) }}
+                onClick={toggleNotifications}
                 className="relative rounded-xl p-2.5 text-navy-500 transition-colors hover:bg-navy-100 hover:text-navy-800"
                 aria-label="Notifications"
                 aria-expanded={notifOpen}
@@ -338,7 +377,6 @@ export function DashboardLayout({ role }: { role: Role }) {
               </button>
               {notifOpen && (
                 <>
-                  <div className="fixed inset-0 z-30" onClick={() => setNotifOpen(false)} />
                   <motion.div
                     initial={{ opacity: 0, y: -6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -391,7 +429,7 @@ export function DashboardLayout({ role }: { role: Role }) {
               )}
             </div>
 
-            <div className="relative">
+            <div className="relative" ref={userRef}>
               <button
                 onClick={() => { setUserMenu((v) => !v); setNotifOpen(false) }}
                 className="flex items-center gap-2 rounded-xl p-1 pr-2 transition-colors hover:bg-navy-100"
@@ -403,7 +441,6 @@ export function DashboardLayout({ role }: { role: Role }) {
               </button>
               {userMenu && (
                 <>
-                  <div className="fixed inset-0 z-30" onClick={() => setUserMenu(false)} />
                   <motion.div
                     initial={{ opacity: 0, y: -6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}

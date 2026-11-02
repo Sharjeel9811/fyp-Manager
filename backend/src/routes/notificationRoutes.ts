@@ -6,6 +6,7 @@ const router = Router()
 router.use(authenticate)
 
 router.get('/', notifications.getNotifications)
+router.patch('/read', notifications.markManyRead)
 router.patch('/read-all', notifications.markAllRead)
 router.patch('/:id/read', notifications.markRead)
 router.delete('/:id', notifications.deleteNotification)

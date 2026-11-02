@@ -31,6 +31,20 @@ export const markRead = asyncHandler(async (req: AuthRequest, res: Response) => 
   res.json({ success: true, message: 'Marked as read' })
 })
 
+/**
+ * Mark a specific set of notifications read — used when the header dropdown is
+ * opened, so the unread badge clears for exactly what the user just saw.
+ */
+export const markManyRead = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((id: any) => typeof id === 'string').slice(0, 100) : []
+  if (!ids.length) return res.json({ success: true, message: 'Nothing to mark as read', updated: 0 })
+  const result = await Notification.updateMany(
+    { _id: { $in: ids }, userId: req.user!.id, isRead: false },
+    { isRead: true }
+  )
+  res.json({ success: true, message: 'Marked as read', updated: result.modifiedCount ?? 0 })
+})
+
 export const markAllRead = asyncHandler(async (req: AuthRequest, res: Response) => {
   await Notification.updateMany({ userId: req.user!.id, isRead: false }, { isRead: true })
   res.json({ success: true, message: 'All notifications marked as read' })
