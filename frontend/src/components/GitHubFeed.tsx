@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { GitBranch, Github, Link2, Loader2, Star, UserRound, RefreshCw, ExternalLink, AlertTriangle, UploadCloud } from 'lucide-react'
@@ -177,7 +177,7 @@ function RepoLinkModal({
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
-  const [repoUrl, setRepoUrl] = useState(`https://github.com/${currentRepo}`)
+  const [repoUrl, setRepoUrl] = useState(currentRepo ? `https://github.com/${currentRepo}` : '')
   const [result, setResult] = useState<{ text: string; error?: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -243,7 +243,11 @@ function RepoLinkModal({
             <label className="mt-4 block">
               <span className="mb-1.5 block text-sm font-medium text-navy-700">GitHub repository</span>
               <Input value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://github.com/owner/repo" />
-              <span className="mt-1 block text-[11px] text-navy-400">The team is currently linked to {currentRepo}.</span>
+              <span className="mt-1 block text-[11px] text-navy-400">
+                {currentRepo
+                  ? `The team is currently linked to ${currentRepo}.`
+                  : 'Paste the public repository your team pushes to.'}
+              </span>
             </label>
             <div className="mt-5 flex items-center justify-between gap-2">
               <Button variant="outline" onClick={remove} loading={busy} disabled={!currentRepo}>
@@ -313,30 +317,36 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
     }
   }
 
+  let content: ReactNode
+
   if (isLoading) {
-    return (
+    content = (
       <Card className="p-6">
         <div className="flex items-center gap-2 text-sm text-navy-400">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading repository data…
         </div>
       </Card>
     )
-  }
-  if (error) {
-    return (
+  } else if (error) {
+    // A deleted, private, or mistyped repository lands here. Offer a way out —
+    // otherwise the page is a dead end and "Try again" never succeeds.
+    content = (
       <Card className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-red-600">{(error as Error).message}</p>
-          <Button size="sm" variant="outline" loading={forcing} onClick={forceRefresh}>
-            <RefreshCw className="h-4 w-4" /> Try again
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setRepoLinkOpen(true)}>
+              <Link2 className="h-4 w-4" /> Change repo
+            </Button>
+            <Button size="sm" variant="outline" loading={forcing} onClick={forceRefresh}>
+              <RefreshCw className="h-4 w-4" /> Try again
+            </Button>
+          </div>
         </div>
       </Card>
     )
-  }
-
-  if (!data?.repo) {
-    return (
+  } else if (!data?.repo) {
+    content = (
       <Card className="p-6">
         <EmptyState
           icon={Github}
@@ -369,10 +379,9 @@ export function GitHubFeed({ projectId }: { projectId: string }) {
         {publishOpen && <PublishModal projectId={projectId} onClose={() => setPublishOpen(false)} />}
       </Card>
     )
-  }
-
-  return (
-    <Card className="p-6">
+  } else {
+    content = (
+      <Card className="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -512,9 +521,16 @@ git push -u origin ${feed.defaultBranch}`}</pre>
         </>
       )}
       {publishOpen && <PublishModal projectId={projectId} onClose={() => setPublishOpen(false)} />}
+      </Card>
+    )
+  }
+
+  return (
+    <>
+      {content}
       {repoLinkOpen && (
-        <RepoLinkModal projectId={projectId} currentRepo={feed.repo} onClose={() => setRepoLinkOpen(false)} />
+        <RepoLinkModal projectId={projectId} currentRepo={data?.repo || ''} onClose={() => setRepoLinkOpen(false)} />
       )}
-    </Card>
+    </>
   )
 }
